@@ -1,0 +1,21 @@
+import sys
+from PyQt5.QtWidgets import QApplication, QLabel, QMainWindow
+
+
+class MainWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Office Layout Planner")
+        self.setGeometry(200, 200, 800, 600)
+        self.setCentralWidget(QLabel("Hello from Office Layout Planner!", self))
+
+
+def main():
+    app = QApplication(sys.argv)
+    window = MainWindow()
+    window.show()
+    sys.exit(app.exec_())
+
+
+if __name__ == "__main__":
+    main()
