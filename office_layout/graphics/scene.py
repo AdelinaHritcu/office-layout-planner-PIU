@@ -25,13 +25,28 @@ class OfficeScene(QGraphicsScene):
             self.add_item_at(event.scenePos())
         super().mousePressEvent(event)
 
+    def snap_to_grid(self, x: float, y: float) -> tuple[float, float]:
+        """Return the nearest grid-aligned position for (x, y)."""
+        grid = self.grid_size
+        snapped_x = round(x / grid) * grid
+        snapped_y = round(y / grid) * grid
+        return snapped_x, snapped_y
+
     def add_item_at(self, pos):
         size = 50
+        x = pos.x() - size / 2
+        y = pos.y() - size / 2
+
+        # If grid is visible, snap the item to the closest grid intersection
+        if self.show_grid:
+            x, y = self.snap_to_grid(x, y)
+
         item = QGraphicsRectItem(0, 0, size, size)
-        item.setPos(pos.x() - size / 2, pos.y() - size / 2)
+        item.setPos(x, y)
         item.setBrush(QBrush(Qt.lightGray))
         item.setFlag(item.ItemIsMovable, True)
         item.setFlag(item.ItemIsSelectable, True)
+
         self.addItem(item)
 
     def drawBackground(self, painter, rect: QRectF):
@@ -48,14 +63,12 @@ class OfficeScene(QGraphicsScene):
 
         grid = self.grid_size
 
-        # align start positions to grid
         left = int(rect.left()) - (int(rect.left()) % grid)
         top = int(rect.top()) - (int(rect.top()) % grid)
-
-        x = left
         right = int(rect.right())
         bottom = int(rect.bottom())
 
+        x = left
         while x <= right:
             painter.drawLine(int(x), int(rect.top()), int(x), bottom)
             x += grid
