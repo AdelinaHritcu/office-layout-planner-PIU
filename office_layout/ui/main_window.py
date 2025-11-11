@@ -18,7 +18,7 @@ class MainWindow(QMainWindow):
 
         # Window setup
         self.setWindowTitle("Office Layout Planner")
-        self.resize(1200, 700)
+        self.resize(1400, 800)
 
         # === CENTRAL WIDGET & MAIN LAYOUT ===
         central = QWidget(self)
