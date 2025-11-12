@@ -20,3 +20,20 @@ class MainToolBar(QToolBar):
         self.addSeparator()
 
         self.validate_action = self.addAction("Validate Layout")
+
+        self.setStyleSheet("""
+    QToolBar {
+        background-color: #e0e0e0;
+        spacing: 6px;
+        padding: 4px;
+        border: none;
+    }
+    QToolButton {
+        background-color: #ffffff;
+        border-radius: 4px;
+        padding: 4px;
+    }
+    QToolButton:hover {
+        background-color: #cfd8dc;
+    }
+""")
