@@ -21,7 +21,6 @@ class Sidebar(QWidget):
             ("Desk", "resources/icons/desk.png"),
             ("Corner Desk", "resources/icons/corner-desk.png"),
             ("Chair", "resources/icons/chair.png"),
-            ("PC", "resources/icons/computer.png"),
             ("Wall", "resources/icons/wall.png"),
             ("Door", "resources/icons/door.png"),
             ("Meeting Room", "resources/icons/meetingroom.png"),

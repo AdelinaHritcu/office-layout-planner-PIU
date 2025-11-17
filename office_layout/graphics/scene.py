@@ -1,12 +1,11 @@
 import os
 import json
-from PyQt5.QtWidgets import QGraphicsScene, QGraphicsRectItem, QGraphicsItem
+from PyQt5.QtWidgets import QGraphicsScene, QGraphicsRectItem, QGraphicsItem, QGraphicsPixmapItem
 from PyQt5.QtGui import QBrush, QPen, QTransform
 from PyQt5.QtCore import Qt, QRectF  # Qt is needed for key codes
 
 from office_layout.graphics.items.base_item import ImageItem
 from office_layout.graphics.items.desk_item import DeskItem
-from office_layout.graphics.items.computer_item import ComputerItem
 from office_layout.graphics.items.chair_item import ChairItem
 from office_layout.graphics.items.corner_desk_item import CornerDeskItem
 from office_layout.graphics.items.door_item import DoorItem
@@ -184,8 +183,6 @@ class OfficeScene(QGraphicsScene):
         # Use if/elif/else to correctly create items
         if self.current_type == "Desk":
             item = DeskItem(x, y)
-        elif self.current_type == "PC":  # Matches sidebar "PC"
-            item = ComputerItem(x, y)
         elif self.current_type == "Chair":
             item = ChairItem(x, y)
         elif self.current_type == "Corner Desk":
@@ -263,8 +260,6 @@ class OfficeScene(QGraphicsScene):
                 item = WallItem(x, y, w, h)
             elif obj_type == "Desk":
                 item = DeskItem(x, y)
-            elif obj_type == "PC":
-                item = ComputerItem(x, y)
             elif obj_type == "Chair":
                 item = ChairItem(x, y)
             elif obj_type == "Corner Desk":
@@ -322,3 +317,130 @@ class OfficeScene(QGraphicsScene):
             y += grid
 
         painter.restore()
+
+
+# python
+# file: office_layout/graphics/scene_utils.py
+
+# python
+# file: office_layout/graphics/scene.py (add these methods / replace the existing add_item_at)
+
+def _add_and_select_item(self, item, x: float = None, y: float = None, clear_selection: bool = True, select: bool = True):
+    """
+    Internal helper: set position, ensure flags for focus/hover, add to scene,
+    bring to front and optionally select+focus the item so resizing works immediately.
+    """
+    if x is not None or y is not None:
+        cur = item.pos()
+        nx = x if x is not None else cur.x()
+        ny = y if y is not None else cur.y()
+        item.setPos(nx, ny)
+
+    if clear_selection:
+        for s in self.selectedItems():
+            s.setSelected(False)
+
+    # Ensure the item can accept focus and hover events (works for ImageItem and QGraphicsRectItem)
+    try:
+        item.setFlag(QGraphicsItem.ItemIsFocusable, True)
+        item.setAcceptHoverEvents(True)
+    except Exception:
+        pass
+
+    # Add, bring to front and optionally select/focus
+    self.addItem(item)
+    max_z = max((it.zValue() for it in self.items()), default=0)
+    item.setZValue(max_z + 1)
+
+    if select:
+        item.setSelected(True)
+        item.setFocus()
+
+
+def _add_and_select_item(self, item, x: float = None, y: float = None, clear_selection: bool = True, select: bool = True):
+    """
+    Internal helper: set position, ensure flags for focus/hover, add to scene,
+    bring to front and optionally select+focus the item so resizing works immediately.
+    Must be a method of OfficeScene.
+    """
+    if x is not None or y is not None:
+        cur = item.pos()
+        nx = x if x is not None else cur.x()
+        ny = y if y is not None else cur.y()
+        item.setPos(nx, ny)
+
+    if clear_selection:
+        for s in self.selectedItems():
+            s.setSelected(False)
+
+    # Ensure the item is movable/selectable/focusable and accepts hover events
+    try:
+        item.setFlag(QGraphicsItem.ItemIsMovable, True)
+        item.setFlag(QGraphicsItem.ItemIsSelectable, True)
+        item.setFlag(QGraphicsItem.ItemIsFocusable, True)
+        item.setAcceptHoverEvents(True)
+    except Exception:
+        # Some items might not implement these methods; ignore safely
+        pass
+
+    # Add, bring to front and optionally select/focus
+    self.addItem(item)
+    max_z = max((it.zValue() for it in self.items()), default=0)
+    item.setZValue(max_z + 1)
+
+    if select:
+        item.setSelected(True)
+        try:
+            item.setFocus()
+        except Exception:
+            pass
+
+
+def add_item_at(self, pos):
+    size = 50
+    x = pos.x() - size / 2
+    y = pos.y() - size / 2
+
+    if self.show_grid:
+        x, y = self.snap_to_grid(x, y)
+
+    item = None
+
+    if self.current_type == "Desk":
+        item = DeskItem(x, y)
+    elif self.current_type == "Chair":
+        item = ChairItem(x, y)
+    elif self.current_type == "Corner Desk":
+        item = CornerDeskItem(x, y)
+    elif self.current_type == "Door":
+        item = DoorItem(x, y)
+    elif self.current_type == "Meeting Room":
+        item = MeetingRoomItem(x, y)
+    elif self.current_type == "Sink":
+        item = SinkItem(x, y)
+    elif self.current_type == "Toilet":
+        item = ToiletItem(x, y)
+    elif self.current_type == "Washbasin":
+        item = WashbasinItem(x, y)
+    else:
+        image_name = f"{self.current_type.lower().replace(' ', '')}.png"
+        image_path = os.path.join("resources", "icons", image_name)
+
+        if os.path.exists(image_path):
+            item = ImageItem(x, y, image_path, item_type=self.current_type)
+        else:
+            item = QGraphicsRectItem(0, 0, size, size)
+            item.setPos(x, y)
+            item.setBrush(QBrush(Qt.lightGray))
+            # set basic flags so fallback rect is interactable
+            try:
+                item.setFlag(QGraphicsItem.ItemIsMovable, True)
+                item.setFlag(QGraphicsItem.ItemIsSelectable, True)
+                item.setFlag(QGraphicsItem.ItemIsFocusable, True)
+                item.setAcceptHoverEvents(True)
+            except Exception:
+                pass
+
+    if item:
+        # Use the helper so every item is selected/focused consistently
+        self._add_and_select_item(item, x, y)
