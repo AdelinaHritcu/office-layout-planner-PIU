@@ -1,6 +1,7 @@
 # file: office_layout/graphics/scene.py
 
 import os
+from typing import Optional
 
 from PyQt5.QtWidgets import QGraphicsScene, QGraphicsRectItem, QGraphicsItem
 from PyQt5.QtGui import QBrush, QPen, QTransform
@@ -32,8 +33,8 @@ class OfficeScene(QGraphicsScene):
         # wall drawing state
         self.is_drawing_wall = False
         self.wall_start_pos = None
-        self.current_wall_item: WallItem | None = None
-        self.wall_thickness = 10.0  # fixed wall thickness
+        self.current_wall_item: Optional[WallItem] = None
+        self.wall_thickness = 40.0  # fixed wall thickness
 
     # ------------------------------------------------------------------
     # general helpers
@@ -87,7 +88,7 @@ class OfficeScene(QGraphicsScene):
             item = WashbasinItem(x, y)
         elif self.current_type == "Wall":
             # default wall placed without dragging
-            length = 100.0
+            length = 200.0
             thickness = self.wall_thickness
             item = WallItem(x, y, length, thickness)
         else:
@@ -105,10 +106,20 @@ class OfficeScene(QGraphicsScene):
                 item.setFlag(QGraphicsItem.ItemIsSelectable, True)
 
         if item:
+            # clear existing selection
+            for s in self.selectedItems():
+                s.setSelected(False)
+
+            # add and select the new item
             self.addItem(item)
+            item.setSelected(True)
+            try:
+                item.setFocus()
+            except Exception:
+                pass
 
     # ------------------------------------------------------------------
-    # MOUSE EVENTS (TOT CE TINE DE MOUSE)
+    # MOUSE EVENTS
     # ------------------------------------------------------------------
 
     def mousePressEvent(self, event):
@@ -120,6 +131,14 @@ class OfficeScene(QGraphicsScene):
             pos.setY(round(pos.y() / self.grid_size) * self.grid_size)
 
         clicked_item = self.itemAt(pos, QTransform())
+
+        # if there is a selection and user clicks on empty space,
+        # only clear selection; do not add a new item yet
+        if event.button() == Qt.LeftButton and clicked_item is None:
+            if self.selectedItems():
+                for s in self.selectedItems():
+                    s.setSelected(False)
+                return
 
         # right click: delete movable item
         if event.button() == Qt.RightButton:
@@ -142,11 +161,11 @@ class OfficeScene(QGraphicsScene):
                 self.addItem(self.current_wall_item)
                 return
             else:
-                # add new item only if empty space
+                # add new item only if empty space (and no selection to clear)
                 if clicked_item is None:
                     self.add_item_at(pos)
                     return
-                # if clicked on item, base class will handle selection/dragging
+                # if clicked on item, base class will handle selection/drag
 
         super().mousePressEvent(event)
 
@@ -196,8 +215,21 @@ class OfficeScene(QGraphicsScene):
         # stop wall drawing on left button release
         if self.is_drawing_wall and event.button() == Qt.LeftButton:
             self.is_drawing_wall = False
+
+            wall = self.current_wall_item
             self.current_wall_item = None
             self.wall_start_pos = None
+
+            if wall is not None:
+                # clear previous selection and select the new wall
+                for s in self.selectedItems():
+                    s.setSelected(False)
+                wall.setSelected(True)
+                try:
+                    wall.setFocus()
+                except Exception:
+                    pass
+
             return
 
         super().mouseReleaseEvent(event)
@@ -273,7 +305,8 @@ class OfficeScene(QGraphicsScene):
             if obj_type == "Wall":
                 w = obj.get("width", 200)
                 h = obj.get("height", self.wall_thickness)
-                item = WallItem(x, y, w if w >= h else h, self.wall_thickness)
+                length = max(w, h)
+                item = WallItem(x, y, length, self.wall_thickness)
             elif obj_type == "Desk":
                 item = DeskItem(x, y)
             elif obj_type == "Chair":
