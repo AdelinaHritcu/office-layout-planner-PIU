@@ -5,7 +5,7 @@ from PyQt5.QtCore import Qt
 from office_layout.graphics.scene import OfficeScene
 from office_layout.ui.toolbar import MainToolBar
 from office_layout.ui.statusbar import MainStatusBar
-from office_layout.ui.sidebar import Sidebar  # noul fișier separat
+from office_layout.ui.sidebar import Sidebar
 
 
 class MainWindow(QMainWindow):

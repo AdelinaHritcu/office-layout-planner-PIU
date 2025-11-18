@@ -1,8 +1,10 @@
+# file: office_layout/graphics/scene.py
+
 import os
-import json
-from PyQt5.QtWidgets import QGraphicsScene, QGraphicsRectItem, QGraphicsItem, QGraphicsPixmapItem
+
+from PyQt5.QtWidgets import QGraphicsScene, QGraphicsRectItem, QGraphicsItem
 from PyQt5.QtGui import QBrush, QPen, QTransform
-from PyQt5.QtCore import Qt, QRectF  # Qt is needed for key codes
+from PyQt5.QtCore import Qt, QRectF
 
 from office_layout.graphics.items.base_item import ImageItem
 from office_layout.graphics.items.desk_item import DeskItem
@@ -22,14 +24,20 @@ class OfficeScene(QGraphicsScene):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setSceneRect(0, 0, 900, 600)
+
         self.current_type = "Desk"
         self.show_grid = False
         self.grid_size = 40
 
+        # wall drawing state
         self.is_drawing_wall = False
         self.wall_start_pos = None
-        self.current_wall_item = None
+        self.current_wall_item: WallItem | None = None
+        self.wall_thickness = 10.0  # fixed wall thickness
 
+    # ------------------------------------------------------------------
+    # general helpers
+    # ------------------------------------------------------------------
 
     def set_object_type(self, object_type: str):
         """Update the currently selected object type from the sidebar."""
@@ -40,135 +48,16 @@ class OfficeScene(QGraphicsScene):
         self.show_grid = not self.show_grid
         self.update()
 
-    def mousePressEvent(self, event):
-        pos = event.scenePos()
-
-        # Snap to grid if enabled
-        if self.show_grid:
-            pos.setX(round(pos.x() / self.grid_size) * self.grid_size)
-            pos.setY(round(pos.y() / self.grid_size) * self.grid_size)
-
-        clicked_item = self.itemAt(pos, QTransform())
-
-        # --- Handle Wall Drawing ---
-        if self.current_type == "Wall" and event.button() == Qt.LeftButton:
-            self.is_drawing_wall = True
-            self.wall_start_pos = pos
-            # Create a new wall item with zero size
-            self.current_wall_item = WallItem(pos.x(), pos.y(), 0, 0)
-            self.addItem(self.current_wall_item)
-            return
-
-        # --- Handle Deletion ---
-        if event.button() == Qt.RightButton:
-            if clicked_item and (clicked_item.flags() & QGraphicsItem.ItemIsMovable):
-                self.removeItem(clicked_item)
-                del clicked_item
-                return
-
-        # --- Handle Adding Other Items ---
-        if event.button() == Qt.LeftButton:
-            if clicked_item is None:
-                self.add_item_at(pos)  # Add normal item
-                return
-
-        # Call base class for item selection/moving
-        super().mousePressEvent(event)
-
-    # --- NEW: Handles resizing the wall during draw ---
-    def mouseMoveEvent(self, event):
-        if self.is_drawing_wall and self.current_wall_item:
-            pos = event.scenePos()
-
-            # Snap to grid if enabled
-            if self.show_grid:
-                pos.setX(round(pos.x() / self.grid_size) * self.grid_size)
-                pos.setY(round(pos.y() / self.grid_size) * self.grid_size)
-
-            # Create a normalized rectangle
-            rect = QRectF(self.wall_start_pos, pos).normalized()
-            self.current_wall_item.setRect(rect)
-            return
-
-        super().mouseMoveEvent(event)
-
-    def mouseReleaseEvent(self, event):
-        if self.is_drawing_wall and event.button() == Qt.LeftButton:
-            self.is_drawing_wall = False
-
-            # Optional: Set a minimum wall thickness
-            if self.current_wall_item:
-                rect = self.current_wall_item.rect()
-                if rect.width() < self.grid_size and rect.height() < self.grid_size:
-                    # If it's too small, make it a standard "block"
-                    rect.setWidth(self.grid_size)
-                    rect.setHeight(self.grid_size)
-                    self.current_wall_item.setRect(rect)
-                elif rect.width() < 10:  # Min thickness
-                    rect.setWidth(10)
-                    self.current_wall_item.setRect(rect)
-                elif rect.height() < 10:  # Min thickness
-                    rect.setHeight(10)
-                    self.current_wall_item.setRect(rect)
-
-            self.current_wall_item = None
-            self.wall_start_pos = None
-            return
-
-        super().mouseReleaseEvent(event)
-
-    def mousePressEvent(self, event):
-        pos = event.scenePos()
-        clicked_item = self.itemAt(pos, QTransform())
-
-        if event.button() == Qt.LeftButton:
-            if clicked_item is None:
-                self.add_item_at(pos)
-                return
-            # Let the base class handle selection/drag start
-
-        elif event.button() == Qt.RightButton:
-            # Check if we clicked a movable item
-            if clicked_item and (clicked_item.flags() & QGraphicsItem.ItemIsMovable):
-                self.removeItem(clicked_item)
-                del clicked_item
-                return
-
-        super().mousePressEvent(event)
-
-    def keyPressEvent(self, event):
-        """Handle key presses for rotating selected items."""
-
-        # Get all selected items
-        selected = self.selectedItems()
-
-        if not selected:
-            super().keyPressEvent(event)
-            return
-
-        # Rotate 90 degrees with 'R'
-        if event.key() == Qt.Key_R:
-            for item in selected:
-                current_rotation = item.rotation()
-                item.setRotation(current_rotation + 90)
-
-        elif event.key() == Qt.Key_Left:
-            for item in selected:
-                item.setRotation(item.rotation() - 15)
-
-        elif event.key() == Qt.Key_Right:
-            for item in selected:
-                item.setRotation(item.rotation() + 15)
-
-        else:
-            super().keyPressEvent(event)
-
     def snap_to_grid(self, x: float, y: float) -> tuple[float, float]:
         """Return the nearest grid-aligned position for (x, y)."""
         grid = self.grid_size
         snapped_x = round(x / grid) * grid
         snapped_y = round(y / grid) * grid
         return snapped_x, snapped_y
+
+    # ------------------------------------------------------------------
+    # item creation
+    # ------------------------------------------------------------------
 
     def add_item_at(self, pos):
         size = 50
@@ -180,7 +69,6 @@ class OfficeScene(QGraphicsScene):
 
         item = None
 
-        # Use if/elif/else to correctly create items
         if self.current_type == "Desk":
             item = DeskItem(x, y)
         elif self.current_type == "Chair":
@@ -197,36 +85,164 @@ class OfficeScene(QGraphicsScene):
             item = ToiletItem(x, y)
         elif self.current_type == "Washbasin":
             item = WashbasinItem(x, y)
+        elif self.current_type == "Wall":
+            # default wall placed without dragging
+            length = 100.0
+            thickness = self.wall_thickness
+            item = WallItem(x, y, length, thickness)
         else:
-            # Fallback for any other types
             image_name = f"{self.current_type.lower().replace(' ', '')}.png"
             image_path = os.path.join("resources", "icons", image_name)
 
             if os.path.exists(image_path):
                 item = ImageItem(x, y, image_path, item_type=self.current_type)
             else:
-                print(f"Warning: Could not find icon for {self.current_type}")
+                # fallback simple rect item
                 item = QGraphicsRectItem(0, 0, size, size)
                 item.setPos(x, y)
                 item.setBrush(QBrush(Qt.lightGray))
-                item.setFlag(QGraphicsRectItem.ItemIsMovable, True)
-                item.setFlag(QGraphicsRectItem.ItemIsSelectable, True)
+                item.setFlag(QGraphicsItem.ItemIsMovable, True)
+                item.setFlag(QGraphicsItem.ItemIsSelectable, True)
 
         if item:
             self.addItem(item)
 
+    # ------------------------------------------------------------------
+    # MOUSE EVENTS (TOT CE TINE DE MOUSE)
+    # ------------------------------------------------------------------
+
+    def mousePressEvent(self, event):
+        pos = event.scenePos()
+
+        # snap to grid if enabled
+        if self.show_grid:
+            pos.setX(round(pos.x() / self.grid_size) * self.grid_size)
+            pos.setY(round(pos.y() / self.grid_size) * self.grid_size)
+
+        clicked_item = self.itemAt(pos, QTransform())
+
+        # right click: delete movable item
+        if event.button() == Qt.RightButton:
+            if clicked_item and (clicked_item.flags() & QGraphicsItem.ItemIsMovable):
+                self.removeItem(clicked_item)
+                del clicked_item
+                return
+
+        # left click: either start wall drawing or place normal item
+        if event.button() == Qt.LeftButton:
+            if self.current_type == "Wall":
+                # start wall drawing from this point
+                self.is_drawing_wall = True
+                self.wall_start_pos = pos
+
+                thickness = self.wall_thickness
+                # initial tiny horizontal wall; rect is local (0,0,length,thickness)
+                self.current_wall_item = WallItem(pos.x(), pos.y(), 1.0, thickness)
+                self.current_wall_item.orientation = "horizontal"
+                self.addItem(self.current_wall_item)
+                return
+            else:
+                # add new item only if empty space
+                if clicked_item is None:
+                    self.add_item_at(pos)
+                    return
+                # if clicked on item, base class will handle selection/dragging
+
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        # handle live wall drawing
+        if self.is_drawing_wall and self.current_wall_item is not None:
+            pos = event.scenePos()
+
+            if self.show_grid:
+                pos.setX(round(pos.x() / self.grid_size) * self.grid_size)
+                pos.setY(round(pos.y() / self.grid_size) * self.grid_size)
+
+            start = self.wall_start_pos
+            thickness = self.wall_thickness
+            min_length = 40.0
+
+            dx = pos.x() - start.x()
+            dy = pos.y() - start.y()
+
+            # choose orientation by dominant axis
+            if abs(dx) >= abs(dy):
+                # horizontal wall
+                self.current_wall_item.orientation = "horizontal"
+                length = max(abs(dx), min_length)
+                left_x = start.x() if dx >= 0 else start.x() - length
+                top_y = start.y() - thickness / 2.0
+
+                # local rect is (0, 0, length, thickness)
+                self.current_wall_item.setRect(0, 0, length, thickness)
+                self.current_wall_item.setPos(left_x, top_y)
+            else:
+                # vertical wall
+                self.current_wall_item.orientation = "vertical"
+                length = max(abs(dy), min_length)
+                top_y = start.y() if dy >= 0 else start.y() - length
+                left_x = start.x() - thickness / 2.0
+
+                # local rect is (0, 0, thickness, length)
+                self.current_wall_item.setRect(0, 0, thickness, length)
+                self.current_wall_item.setPos(left_x, top_y)
+
+            return
+
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        # stop wall drawing on left button release
+        if self.is_drawing_wall and event.button() == Qt.LeftButton:
+            self.is_drawing_wall = False
+            self.current_wall_item = None
+            self.wall_start_pos = None
+            return
+
+        super().mouseReleaseEvent(event)
+
+    # ------------------------------------------------------------------
+    # KEYBOARD EVENTS (rotate)
+    # ------------------------------------------------------------------
+
+    def keyPressEvent(self, event):
+        """Handle key presses for rotating selected items."""
+        selected = self.selectedItems()
+        if not selected:
+            super().keyPressEvent(event)
+            return
+
+        if event.key() == Qt.Key_R:
+            for item in selected:
+                item.setRotation(item.rotation() + 90)
+        elif event.key() == Qt.Key_Left:
+            for item in selected:
+                item.setRotation(item.rotation() - 15)
+        elif event.key() == Qt.Key_Right:
+            for item in selected:
+                item.setRotation(item.rotation() + 15)
+        else:
+            super().keyPressEvent(event)
+
+    # ------------------------------------------------------------------
+    # SAVE / LOAD HELPERS
+    # ------------------------------------------------------------------
 
     def get_scene_data(self) -> dict:
         """Get all serializable items from the scene."""
         layout = {
             "layout_name": "My Plan",
-            "canvas_size": {"width": self.width(), "height": self.height()},
-            "objects": []
+            "canvas_size": {
+                "width": self.sceneRect().width(),
+                "height": self.sceneRect().height(),
+            },
+            "objects": [],
         }
 
         for item in self.items():
             if item.flags() & QGraphicsItem.ItemIsMovable:
-                if hasattr(item, 'to_dict'):
+                if hasattr(item, "to_dict"):
                     layout["objects"].append(item.to_dict())
 
         return layout
@@ -251,13 +267,13 @@ class OfficeScene(QGraphicsScene):
             y = obj.get("y", 0)
             obj_type = obj.get("type", "Desk")
             rotation = obj.get("rotation", 0)
-            scale = obj.get("scale", 2)
+            scale = obj.get("scale", 1.0)
 
             item = None
             if obj_type == "Wall":
-                w = obj.get("width", 300)  # Default width
-                h = obj.get("height", 300)  # Default height
-                item = WallItem(x, y, w, h)
+                w = obj.get("width", 200)
+                h = obj.get("height", self.wall_thickness)
+                item = WallItem(x, y, w if w >= h else h, self.wall_thickness)
             elif obj_type == "Desk":
                 item = DeskItem(x, y)
             elif obj_type == "Chair":
@@ -278,13 +294,17 @@ class OfficeScene(QGraphicsScene):
                 image_name = f"{obj_type.lower().replace(' ', '')}.png"
                 image_path = os.path.join("resources", "icons", image_name)
                 if not os.path.exists(image_path):
-                    image_path = "resources/icons/desk.png"  # default
+                    image_path = "resources/icons/desk.png"
                 item = ImageItem(x, y, image_path, item_type=obj_type)
 
             if item:
                 item.setRotation(rotation)
                 item.setScale(scale)
                 self.addItem(item)
+
+    # ------------------------------------------------------------------
+    # GRID DRAWING
+    # ------------------------------------------------------------------
 
     def drawBackground(self, painter, rect: QRectF):
         super().drawBackground(painter, rect)
@@ -300,10 +320,7 @@ class OfficeScene(QGraphicsScene):
 
         left = int(rect.left()) - (int(rect.left()) % grid)
         top = int(rect.top()) - (int(rect.top()) % grid)
-
-        # --- AICI ESTE LINIA CORECTATĂ ---
         right = int(rect.right())
-
         bottom = int(rect.bottom())
 
         x = left
@@ -317,130 +334,3 @@ class OfficeScene(QGraphicsScene):
             y += grid
 
         painter.restore()
-
-
-# python
-# file: office_layout/graphics/scene_utils.py
-
-# python
-# file: office_layout/graphics/scene.py (add these methods / replace the existing add_item_at)
-
-def _add_and_select_item(self, item, x: float = None, y: float = None, clear_selection: bool = True, select: bool = True):
-    """
-    Internal helper: set position, ensure flags for focus/hover, add to scene,
-    bring to front and optionally select+focus the item so resizing works immediately.
-    """
-    if x is not None or y is not None:
-        cur = item.pos()
-        nx = x if x is not None else cur.x()
-        ny = y if y is not None else cur.y()
-        item.setPos(nx, ny)
-
-    if clear_selection:
-        for s in self.selectedItems():
-            s.setSelected(False)
-
-    # Ensure the item can accept focus and hover events (works for ImageItem and QGraphicsRectItem)
-    try:
-        item.setFlag(QGraphicsItem.ItemIsFocusable, True)
-        item.setAcceptHoverEvents(True)
-    except Exception:
-        pass
-
-    # Add, bring to front and optionally select/focus
-    self.addItem(item)
-    max_z = max((it.zValue() for it in self.items()), default=0)
-    item.setZValue(max_z + 1)
-
-    if select:
-        item.setSelected(True)
-        item.setFocus()
-
-
-def _add_and_select_item(self, item, x: float = None, y: float = None, clear_selection: bool = True, select: bool = True):
-    """
-    Internal helper: set position, ensure flags for focus/hover, add to scene,
-    bring to front and optionally select+focus the item so resizing works immediately.
-    Must be a method of OfficeScene.
-    """
-    if x is not None or y is not None:
-        cur = item.pos()
-        nx = x if x is not None else cur.x()
-        ny = y if y is not None else cur.y()
-        item.setPos(nx, ny)
-
-    if clear_selection:
-        for s in self.selectedItems():
-            s.setSelected(False)
-
-    # Ensure the item is movable/selectable/focusable and accepts hover events
-    try:
-        item.setFlag(QGraphicsItem.ItemIsMovable, True)
-        item.setFlag(QGraphicsItem.ItemIsSelectable, True)
-        item.setFlag(QGraphicsItem.ItemIsFocusable, True)
-        item.setAcceptHoverEvents(True)
-    except Exception:
-        # Some items might not implement these methods; ignore safely
-        pass
-
-    # Add, bring to front and optionally select/focus
-    self.addItem(item)
-    max_z = max((it.zValue() for it in self.items()), default=0)
-    item.setZValue(max_z + 1)
-
-    if select:
-        item.setSelected(True)
-        try:
-            item.setFocus()
-        except Exception:
-            pass
-
-
-def add_item_at(self, pos):
-    size = 50
-    x = pos.x() - size / 2
-    y = pos.y() - size / 2
-
-    if self.show_grid:
-        x, y = self.snap_to_grid(x, y)
-
-    item = None
-
-    if self.current_type == "Desk":
-        item = DeskItem(x, y)
-    elif self.current_type == "Chair":
-        item = ChairItem(x, y)
-    elif self.current_type == "Corner Desk":
-        item = CornerDeskItem(x, y)
-    elif self.current_type == "Door":
-        item = DoorItem(x, y)
-    elif self.current_type == "Meeting Room":
-        item = MeetingRoomItem(x, y)
-    elif self.current_type == "Sink":
-        item = SinkItem(x, y)
-    elif self.current_type == "Toilet":
-        item = ToiletItem(x, y)
-    elif self.current_type == "Washbasin":
-        item = WashbasinItem(x, y)
-    else:
-        image_name = f"{self.current_type.lower().replace(' ', '')}.png"
-        image_path = os.path.join("resources", "icons", image_name)
-
-        if os.path.exists(image_path):
-            item = ImageItem(x, y, image_path, item_type=self.current_type)
-        else:
-            item = QGraphicsRectItem(0, 0, size, size)
-            item.setPos(x, y)
-            item.setBrush(QBrush(Qt.lightGray))
-            # set basic flags so fallback rect is interactable
-            try:
-                item.setFlag(QGraphicsItem.ItemIsMovable, True)
-                item.setFlag(QGraphicsItem.ItemIsSelectable, True)
-                item.setFlag(QGraphicsItem.ItemIsFocusable, True)
-                item.setAcceptHoverEvents(True)
-            except Exception:
-                pass
-
-    if item:
-        # Use the helper so every item is selected/focused consistently
-        self._add_and_select_item(item, x, y)
