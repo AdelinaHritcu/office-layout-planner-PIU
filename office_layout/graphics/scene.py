@@ -18,6 +18,16 @@ from office_layout.graphics.items.toilet_item import ToiletItem
 from office_layout.graphics.items.washbasin_item import WashbasinItem
 from office_layout.graphics.items.wall_item import WallItem
 
+from office_layout.graphics.items.armchair_item import ArmchairItem
+from office_layout.graphics.items.simple_table_item import SimpleTableItem
+from office_layout.graphics.items.coffee_table_item import CoffeeTableItem
+from office_layout.graphics.items.dining_table_item import DiningTableItem
+from office_layout.graphics.items.pool_table_item import PoolTableItem
+from office_layout.graphics.items.right_item import RightItem
+from office_layout.graphics.items.sofa_item import SofaItem
+from office_layout.graphics.items.table_item import TableItem
+from office_layout.graphics.items.table_3person_item import Table3PersonsItem
+
 
 class OfficeScene(QGraphicsScene):
     """Main 2D canvas for placing office elements."""
@@ -34,7 +44,7 @@ class OfficeScene(QGraphicsScene):
         self.is_drawing_wall = False
         self.wall_start_pos = None
         self.current_wall_item: Optional[WallItem] = None
-        self.wall_thickness = 40.0  # fixed wall thickness
+        self.wall_thickness = 10.0  # fixed wall thickness
 
     # ------------------------------------------------------------------
     # general helpers
@@ -76,6 +86,24 @@ class OfficeScene(QGraphicsScene):
             item = ChairItem(x, y)
         elif self.current_type == "Corner Desk":
             item = CornerDeskItem(x, y)
+        elif self.current_type == "Sofa":
+            item = SofaItem(x, y)
+        elif self.current_type == "Armchair":
+            item = ArmchairItem(x, y)
+        elif self.current_type == "Coffee Table":
+            item = CoffeeTableItem(x, y)
+        elif self.current_type == "Dining Table":
+            item = DiningTableItem(x, y)
+        elif self.current_type == "Table":
+            item = TableItem(x, y)
+        elif self.current_type == "Table 3 Persons":
+            item = Table3PersonsItem(x, y)
+        elif self.current_type == "Pool Table":
+            item = PoolTableItem(x, y)
+        elif self.current_type == "Simple Table":
+            item = SimpleTableItem(x, y)
+        elif self.current_type == "Right":
+            item = RightItem(x, y)
         elif self.current_type == "Door":
             item = DoorItem(x, y)
         elif self.current_type == "Meeting Room":
@@ -313,6 +341,24 @@ class OfficeScene(QGraphicsScene):
                 item = ChairItem(x, y)
             elif obj_type == "Corner Desk":
                 item = CornerDeskItem(x, y)
+            elif obj_type == "Sofa":
+                item = SofaItem(x, y)
+            elif obj_type == "Armchair":
+                item = ArmchairItem(x, y)
+            elif obj_type == "Coffee Table":
+                item = CoffeeTableItem(x, y)
+            elif obj_type == "Dining Table":
+                item = DiningTableItem(x, y)
+            elif obj_type == "Table":
+                item = TableItem(x, y)
+            elif obj_type == "Table 3 Persons":
+                item = Table3PersonsItem(x, y)
+            elif obj_type == "Pool Table":
+                item = PoolTableItem(x, y)
+            elif obj_type == "Simple Table":
+                item = SimpleTableItem(x, y)
+            elif obj_type == "Right":
+                item = RightItem(x, y)
             elif obj_type == "Door":
                 item = DoorItem(x, y)
             elif obj_type == "Meeting Room":

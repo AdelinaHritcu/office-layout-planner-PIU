@@ -16,18 +16,27 @@ class Sidebar(QWidget):
         self.object_list.setMinimumHeight(400)
         self.setMinimumWidth(260)
 
-        # This list MUST match what scene.py can create
         objects = [
             ("Desk", "resources/icons/desk.png"),
             ("Corner Desk", "resources/icons/corner-desk.png"),
             ("Chair", "resources/icons/chair.png"),
+            ("Sofa", "resources/icons/sofa.png"),
+            ("Armchair", "resources/icons/armchair.png"),
+            ("Coffee Table", "resources/icons/coffee-table.png"),
+            ("Dining Table", "resources/icons/dining-table.png"),
+            ("Table", "resources/icons/table.png"),
+            ("Table 3 Persons", "resources/icons/table-3persons.png"),
+            ("Pool Table", "resources/icons/pool-table.png"),
+            ("Simple Table", "resources/icons/simple_table.png"),
+            ("Right", "resources/icons/right.png"),
             ("Wall", "resources/icons/wall.png"),
             ("Door", "resources/icons/door.png"),
-            ("Meeting Room", "resources/icons/meetingroom.png"),
+            ("Meeting Room", "resources/icons/meeting.png"),
             ("Toilet", "resources/icons/toilet.png"),
             ("Sink", "resources/icons/sink.png"),
             ("Washbasin", "resources/icons/washbasin.png"),
         ]
+
 
         for name, icon_path in objects:
             item = QListWidgetItem(name)

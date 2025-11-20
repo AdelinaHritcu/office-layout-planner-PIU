@@ -9,7 +9,7 @@ class DeskItem(ImageItem):
         super().__init__(x, y, image_path, item_type="Desk")
 
         # default larger size for desks
-        self.base_scale = 2.0
+        self.base_scale = 1.5
         self.setScale(self.base_scale)
 
         # make sure rotation and scaling use the visual center
