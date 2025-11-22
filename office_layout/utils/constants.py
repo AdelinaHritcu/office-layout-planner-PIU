@@ -52,3 +52,4 @@ WALL_THICKNESS = 4
 
 # Minimum margin between the room and the window (in pixels)
 CANVAS_MARGIN = 20
+
