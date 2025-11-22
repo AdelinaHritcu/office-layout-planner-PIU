@@ -44,12 +44,17 @@ class ImageItem(QGraphicsPixmapItem):
 
     def to_dict(self):
         pos = self.pos()
+        rect = self.boundingRect()
+        width = rect.width() * self.scale()
+        height = rect.height() * self.scale()
         return {
             "type": self.item_type,
             "x": pos.x(),
             "y": pos.y(),
             "rotation": self.rotation(),
             "scale": self.scale(),
+            "width": width,
+            "height": height,
         }
 
     # ----- geometry / shape -----
@@ -173,6 +178,7 @@ class ImageItem(QGraphicsPixmapItem):
         if change in (
             QGraphicsItem.ItemSelectedChange,
             QGraphicsItem.ItemTransformHasChanged,
+            QGraphicsItem.ItemPositionHasChanged,
         ):
             self.update()
         return super().itemChange(change, value)

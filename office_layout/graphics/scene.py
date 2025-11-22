@@ -1,7 +1,7 @@
 # file: office_layout/graphics/scene.py
 
 import os
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from PyQt5.QtWidgets import QGraphicsScene, QGraphicsRectItem, QGraphicsItem
 from PyQt5.QtGui import QBrush, QPen, QTransform
@@ -27,14 +27,26 @@ from office_layout.graphics.items.right_item import RightItem
 from office_layout.graphics.items.sofa_item import SofaItem
 from office_layout.graphics.items.table_item import TableItem
 from office_layout.graphics.items.table_3person_item import Table3PersonsItem
+from office_layout.models.layout_model import LayoutModel, LayoutObject
+from office_layout.models.object_types import ObjectType
 
 
 class OfficeScene(QGraphicsScene):
     """Main 2D canvas for placing office elements."""
 
-    def __init__(self, parent=None):
+    def __init__(self, layout_model: Optional[LayoutModel] = None, parent=None):
         super().__init__(parent)
         self.setSceneRect(0, 0, 900, 600)
+
+        # logical model (data)
+        if layout_model is None:
+            self.layout_model = LayoutModel(
+                room_width=self.sceneRect().width(),
+                room_height=self.sceneRect().height(),
+                grid_size=40.0,
+            )
+        else:
+            self.layout_model = layout_model
 
         self.current_type = "Desk"
         self.show_grid = False
@@ -67,6 +79,136 @@ class OfficeScene(QGraphicsScene):
         return snapped_x, snapped_y
 
     # ------------------------------------------------------------------
+    # mapping helpers: UI type <-> ObjectType
+    # ------------------------------------------------------------------
+
+    def _map_ui_type_to_object_type(self, ui_type: str) -> ObjectType:
+        """
+        Map the UI label (e.g. 'Desk', 'Armchair') to a logical ObjectType.
+        Unknown types fallback to DESK for now.
+        """
+        mapping: Dict[str, ObjectType] = {
+            "Desk": ObjectType.DESK,
+            "Corner Desk": ObjectType.DESK,
+            "Simple Table": ObjectType.DESK,
+            "Table": ObjectType.MEETING_TABLE,
+            "Table 3 Persons": ObjectType.MEETING_TABLE,
+            "Coffee Table": ObjectType.MEETING_TABLE,
+            "Dining Table": ObjectType.MEETING_TABLE,
+            "Meeting Room": ObjectType.MEETING_TABLE,
+            "Chair": ObjectType.CHAIR,
+            "Armchair": ObjectType.ARMCHAIR,
+            "Sofa": ObjectType.ARMCHAIR,
+            "Wall": ObjectType.WALL,
+            # other UI types (Door, Sink, Toilet etc.) will use default
+        }
+        return mapping.get(ui_type, ObjectType.DESK)
+
+    def _create_item_for_ui_type(self, ui_type: str, x: float, y: float) -> QGraphicsItem:
+        """
+        Create a graphics item instance for a given UI type and position.
+        This is used both when adding new items and when loading from model.
+        """
+        if ui_type == "Desk":
+            return DeskItem(x, y)
+        if ui_type == "Chair":
+            return ChairItem(x, y)
+        if ui_type == "Corner Desk":
+            return CornerDeskItem(x, y)
+        if ui_type == "Sofa":
+            return SofaItem(x, y)
+        if ui_type == "Armchair":
+            return ArmchairItem(x, y)
+        if ui_type == "Coffee Table":
+            return CoffeeTableItem(x, y)
+        if ui_type == "Dining Table":
+            return DiningTableItem(x, y)
+        if ui_type == "Table":
+            return TableItem(x, y)
+        if ui_type == "Table 3 Persons":
+            return Table3PersonsItem(x, y)
+        if ui_type == "Pool Table":
+            return PoolTableItem(x, y)
+        if ui_type == "Simple Table":
+            return SimpleTableItem(x, y)
+        if ui_type == "Right":
+            return RightItem(x, y)
+        if ui_type == "Door":
+            return DoorItem(x, y)
+        if ui_type == "Meeting Room":
+            return MeetingRoomItem(x, y)
+        if ui_type == "Sink":
+            return SinkItem(x, y)
+        if ui_type == "Toilet":
+            return ToiletItem(x, y)
+        if ui_type == "Washbasin":
+            return WashbasinItem(x, y)
+        if ui_type == "Wall":
+            # default wall placed without dragging
+            length = 200.0
+            thickness = self.wall_thickness
+            return WallItem(x, y, length, thickness)
+
+        # fallback generic image item
+        size = 50
+        image_name = f"{ui_type.lower().replace(' ', '')}.png"
+        image_path = os.path.join("resources", "icons", image_name)
+
+        if os.path.exists(image_path):
+            return ImageItem(x, y, image_path, item_type=ui_type)
+
+        # fallback simple rect item
+        rect_item = QGraphicsRectItem(0, 0, size, size)
+        rect_item.setPos(x, y)
+        rect_item.setBrush(QBrush(Qt.lightGray))
+        rect_item.setFlag(QGraphicsItem.ItemIsMovable, True)
+        rect_item.setFlag(QGraphicsItem.ItemIsSelectable, True)
+        return rect_item
+
+    def _register_item_in_model(self, item: QGraphicsItem, ui_type: str):
+        """
+        Create a LayoutObject in the model corresponding to this graphics item.
+        Store the model id on the item as 'logical_id' for later sync.
+        If something goes wrong, do not crash the app – just log and return None.
+        """
+        # extra safety: layout_model must exist
+        if not hasattr(self, "layout_model") or self.layout_model is None:
+            print("[DEBUG] No layout_model attached to scene, skipping registration.")
+            return None
+
+        try:
+            pos = item.pos()
+            rect = item.boundingRect()
+
+            # some items might not implement scale()/rotation the same way
+            scale = item.scale() if hasattr(item, "scale") else 1.0
+            rotation = item.rotation() if hasattr(item, "rotation") else 0.0
+
+            width = rect.width() * scale
+            height = rect.height() * scale
+
+            object_type = self._map_ui_type_to_object_type(ui_type)
+            metadata: Dict[str, Any] = {"ui_type": ui_type}
+
+            layout_obj = self.layout_model.add_object(
+                object_type=object_type,
+                x=pos.x(),
+                y=pos.y(),
+                width=width,
+                height=height,
+                rotation=rotation,
+                metadata=metadata,
+            )
+
+            setattr(item, "logical_id", layout_obj.id)
+            return layout_obj
+
+        except Exception as e:
+            # VERY IMPORTANT: do not kill the app, just log to console
+            print("[ERROR] _register_item_in_model failed:", repr(e))
+            return None
+
+    # ------------------------------------------------------------------
     # item creation
     # ------------------------------------------------------------------
 
@@ -78,62 +220,13 @@ class OfficeScene(QGraphicsScene):
         if self.show_grid:
             x, y = self.snap_to_grid(x, y)
 
-        item = None
-
-        if self.current_type == "Desk":
-            item = DeskItem(x, y)
-        elif self.current_type == "Chair":
-            item = ChairItem(x, y)
-        elif self.current_type == "Corner Desk":
-            item = CornerDeskItem(x, y)
-        elif self.current_type == "Sofa":
-            item = SofaItem(x, y)
-        elif self.current_type == "Armchair":
-            item = ArmchairItem(x, y)
-        elif self.current_type == "Coffee Table":
-            item = CoffeeTableItem(x, y)
-        elif self.current_type == "Dining Table":
-            item = DiningTableItem(x, y)
-        elif self.current_type == "Table":
-            item = TableItem(x, y)
-        elif self.current_type == "Table 3 Persons":
-            item = Table3PersonsItem(x, y)
-        elif self.current_type == "Pool Table":
-            item = PoolTableItem(x, y)
-        elif self.current_type == "Simple Table":
-            item = SimpleTableItem(x, y)
-        elif self.current_type == "Right":
-            item = RightItem(x, y)
-        elif self.current_type == "Door":
-            item = DoorItem(x, y)
-        elif self.current_type == "Meeting Room":
-            item = MeetingRoomItem(x, y)
-        elif self.current_type == "Sink":
-            item = SinkItem(x, y)
-        elif self.current_type == "Toilet":
-            item = ToiletItem(x, y)
-        elif self.current_type == "Washbasin":
-            item = WashbasinItem(x, y)
-        elif self.current_type == "Wall":
-            # default wall placed without dragging
-            length = 200.0
-            thickness = self.wall_thickness
-            item = WallItem(x, y, length, thickness)
-        else:
-            image_name = f"{self.current_type.lower().replace(' ', '')}.png"
-            image_path = os.path.join("resources", "icons", image_name)
-
-            if os.path.exists(image_path):
-                item = ImageItem(x, y, image_path, item_type=self.current_type)
-            else:
-                # fallback simple rect item
-                item = QGraphicsRectItem(0, 0, size, size)
-                item.setPos(x, y)
-                item.setBrush(QBrush(Qt.lightGray))
-                item.setFlag(QGraphicsItem.ItemIsMovable, True)
-                item.setFlag(QGraphicsItem.ItemIsSelectable, True)
+        ui_type = self.current_type
+        item = self._create_item_for_ui_type(ui_type, x, y)
 
         if item:
+            # link to model
+            self._register_item_in_model(item, ui_type)
+
             # clear existing selection
             for s in self.selectedItems():
                 s.setSelected(False)
@@ -171,6 +264,10 @@ class OfficeScene(QGraphicsScene):
         # right click: delete movable item
         if event.button() == Qt.RightButton:
             if clicked_item and (clicked_item.flags() & QGraphicsItem.ItemIsMovable):
+                # if linked to model, remove from model too
+                logical_id = getattr(clicked_item, "logical_id", None)
+                if logical_id is not None:
+                    self.layout_model.remove_object(logical_id)
                 self.removeItem(clicked_item)
                 del clicked_item
                 return
@@ -187,6 +284,8 @@ class OfficeScene(QGraphicsScene):
                 self.current_wall_item = WallItem(pos.x(), pos.y(), 1.0, thickness)
                 self.current_wall_item.orientation = "horizontal"
                 self.addItem(self.current_wall_item)
+                # also register in model
+                self._register_item_in_model(self.current_wall_item, "Wall")
                 return
             else:
                 # add new item only if empty space (and no selection to clear)
@@ -286,26 +385,47 @@ class OfficeScene(QGraphicsScene):
             super().keyPressEvent(event)
 
     # ------------------------------------------------------------------
-    # SAVE / LOAD HELPERS
+    # SAVE / LOAD HELPERS (via LayoutModel)
     # ------------------------------------------------------------------
 
     def get_scene_data(self) -> dict:
-        """Get all serializable items from the scene."""
-        layout = {
-            "layout_name": "My Plan",
-            "canvas_size": {
-                "width": self.sceneRect().width(),
-                "height": self.sceneRect().height(),
-            },
-            "objects": [],
-        }
+        """
+        Export the logical layout (via LayoutModel) as a serializable dict.
+        We rebuild the model from current graphics items to ensure sync.
+        """
+        # rebuild model from current scene items
+        self.layout_model = LayoutModel(
+            room_width=self.sceneRect().width(),
+            room_height=self.sceneRect().height(),
+            grid_size=self.grid_size,
+        )
 
         for item in self.items():
             if item.flags() & QGraphicsItem.ItemIsMovable:
                 if hasattr(item, "to_dict"):
-                    layout["objects"].append(item.to_dict())
+                    d = item.to_dict()
+                    ui_type = d.get("type", "Desk")
+                    x = float(d.get("x", 0.0))
+                    y = float(d.get("y", 0.0))
+                    width = float(d.get("width", 50.0))
+                    height = float(d.get("height", 50.0))
+                    rotation = float(d.get("rotation", 0.0))
 
-        return layout
+                    object_type = self._map_ui_type_to_object_type(ui_type)
+                    metadata = {"ui_type": ui_type}
+
+                    layout_obj = self.layout_model.add_object(
+                        object_type=object_type,
+                        x=x,
+                        y=y,
+                        width=width,
+                        height=height,
+                        rotation=rotation,
+                        metadata=metadata,
+                    )
+                    setattr(item, "logical_id", layout_obj.id)
+
+        return self.layout_model.to_dict()
 
     def clear_scene(self):
         """Remove all movable items from the scene."""
@@ -319,67 +439,21 @@ class OfficeScene(QGraphicsScene):
             del item
 
     def load_scene_data(self, data: dict):
-        """Populate the scene from a dictionary."""
+        """
+        Populate the scene from a LayoutModel dictionary.
+        """
         self.clear_scene()
 
-        for obj in data.get("objects", []):
-            x = obj.get("x", 0)
-            y = obj.get("y", 0)
-            obj_type = obj.get("type", "Desk")
-            rotation = obj.get("rotation", 0)
-            scale = obj.get("scale", 1.0)
+        # rebuild model from dict
+        self.layout_model = LayoutModel.from_dict(data)
 
-            item = None
-            if obj_type == "Wall":
-                w = obj.get("width", 200)
-                h = obj.get("height", self.wall_thickness)
-                length = max(w, h)
-                item = WallItem(x, y, length, self.wall_thickness)
-            elif obj_type == "Desk":
-                item = DeskItem(x, y)
-            elif obj_type == "Chair":
-                item = ChairItem(x, y)
-            elif obj_type == "Corner Desk":
-                item = CornerDeskItem(x, y)
-            elif obj_type == "Sofa":
-                item = SofaItem(x, y)
-            elif obj_type == "Armchair":
-                item = ArmchairItem(x, y)
-            elif obj_type == "Coffee Table":
-                item = CoffeeTableItem(x, y)
-            elif obj_type == "Dining Table":
-                item = DiningTableItem(x, y)
-            elif obj_type == "Table":
-                item = TableItem(x, y)
-            elif obj_type == "Table 3 Persons":
-                item = Table3PersonsItem(x, y)
-            elif obj_type == "Pool Table":
-                item = PoolTableItem(x, y)
-            elif obj_type == "Simple Table":
-                item = SimpleTableItem(x, y)
-            elif obj_type == "Right":
-                item = RightItem(x, y)
-            elif obj_type == "Door":
-                item = DoorItem(x, y)
-            elif obj_type == "Meeting Room":
-                item = MeetingRoomItem(x, y)
-            elif obj_type == "Sink":
-                item = SinkItem(x, y)
-            elif obj_type == "Toilet":
-                item = ToiletItem(x, y)
-            elif obj_type == "Washbasin":
-                item = WashbasinItem(x, y)
-            else:
-                image_name = f"{obj_type.lower().replace(' ', '')}.png"
-                image_path = os.path.join("resources", "icons", image_name)
-                if not os.path.exists(image_path):
-                    image_path = "resources/icons/desk.png"
-                item = ImageItem(x, y, image_path, item_type=obj_type)
-
+        for obj in self.layout_model.all_objects():
+            ui_type = obj.metadata.get("ui_type", obj.type.name.title())
+            item = self._create_item_for_ui_type(ui_type, obj.x, obj.y)
             if item:
-                item.setRotation(rotation)
-                item.setScale(scale)
+                item.setRotation(obj.rotation)
                 self.addItem(item)
+                setattr(item, "logical_id", obj.id)
 
     # ------------------------------------------------------------------
     # GRID DRAWING

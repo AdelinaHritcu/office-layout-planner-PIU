@@ -1,3 +1,5 @@
+# file: office_layout/ui/main_window.py
+
 from PyQt5.QtWidgets import QMainWindow, QWidget, QHBoxLayout, QGraphicsView
 from PyQt5.QtGui import QPainter
 from PyQt5.QtCore import Qt
@@ -6,6 +8,7 @@ from office_layout.graphics.scene import OfficeScene
 from office_layout.ui.toolbar import MainToolBar
 from office_layout.ui.statusbar import MainStatusBar
 from office_layout.ui.sidebar import Sidebar
+from office_layout.models.layout_model import LayoutModel
 
 
 class MainWindow(QMainWindow):
@@ -27,7 +30,17 @@ class MainWindow(QMainWindow):
         self.sidebar = Sidebar(self)
 
         # === SCENE + VIEW (RIGHT PANEL) ===
-        self.scene = OfficeScene(self)
+        # Create the logical model of the room
+        self.layout_model = LayoutModel(
+            room_width=900,       # should match sceneRect width
+            room_height=600,      # should match sceneRect height
+            grid_size=40.0,
+        )
+
+        # Pass the model to the scene (and this window as Qt parent)
+        self.scene = OfficeScene(layout_model=self.layout_model, parent=self)
+
+        # Graphics view that displays the scene
         self.view = QGraphicsView(self.scene)
         self.view.setRenderHint(QPainter.Antialiasing)
         self.view.setAlignment(Qt.AlignLeft | Qt.AlignTop)
@@ -76,10 +89,13 @@ class MainWindow(QMainWindow):
         self.status_bar.info(f"Grid {state}")
 
     def validate_layout(self):
+        # Here we will later call validation.validate_layout(self.layout_model)
         self.status_bar.info("Layout validation not implemented yet")
 
     def save_plan(self):
+        # Later this can call storage/json_io.save_layout(path, self.layout_model)
         self.status_bar.info("Save Plan clicked (not implemented)")
 
     def load_plan(self):
+        # Later this can call storage/json_io.load_layout(path) and scene.load_scene_data(...)
         self.status_bar.info("Load Plan clicked (not implemented)")
