@@ -30,6 +30,8 @@ from office_layout.graphics.items.table_3person_item import Table3PersonsItem
 from office_layout.models.layout_model import LayoutModel, LayoutObject
 from office_layout.models.object_types import ObjectType
 
+from office_layout.algorithms.placement import can_place_object, move_object
+from office_layout.algorithms.validation import validate_layout
 
 class OfficeScene(QGraphicsScene):
     """Main 2D canvas for placing office elements."""
@@ -361,6 +363,26 @@ class OfficeScene(QGraphicsScene):
 
         super().mouseReleaseEvent(event)
 
+        selected = self.selectedItems()
+        if selected:
+            item = selected[0]
+            logical_id = getattr(item, "logical_id", None)
+
+            if logical_id is not None:
+                pos = item.pos()
+                ok, msg = move_object(
+                    self.layout_model,
+                    logical_id,
+                    pos.x(),
+                    pos.y()
+                )
+
+                if not ok:
+                    print("[VALIDATION] Move rejected:", msg)
+                    # revert item to old position from model
+                    model_obj = self.layout_model.get_object(logical_id)
+                    item.setPos(model_obj.x, model_obj.y)
+
     # ------------------------------------------------------------------
     # KEYBOARD EVENTS (rotate)
     # ------------------------------------------------------------------
@@ -424,6 +446,12 @@ class OfficeScene(QGraphicsScene):
                         metadata=metadata,
                     )
                     setattr(item, "logical_id", layout_obj.id)
+
+        errors = validate_layout(self.layout_model)
+        if errors:
+            print("Layout validation errors:")
+            for err in errors:
+                print(err.code, err.message)
 
         return self.layout_model.to_dict()
 
