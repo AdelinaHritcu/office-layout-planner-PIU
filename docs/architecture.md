@@ -8,14 +8,14 @@ including the structure of UI components, scene management, and data persistence
 
 ## Project Structure
 
-| Package | Description |
-|----------|--------------|
-| `office_layout/ui` | Main user interface (windows, toolbar, sidebar, dialogs). |
-| `office_layout/graphics` | Canvas and 2D graphics scene. |
-| `office_layout/models` | Logical representation of the layout and object metadata. |
-| `office_layout/algorithms` | Distance, routing, and validation algorithms. |
-| `office_layout/storage` | JSON-based save/load implementation. |
-| `resources` | Visual assets and saved layouts. |
+| Package                    | Description                                               |
+|----------------------------|-----------------------------------------------------------|
+| `office_layout/ui`         | Main user interface (windows, toolbar, sidebar, dialogs). |
+| `office_layout/graphics`   | Canvas and 2D graphics scene.                             |
+| `office_layout/models`     | Logical representation of the layout and object metadata. |
+| `office_layout/algorithms` | Distance, routing, and validation algorithms.             |
+| `office_layout/storage`    | JSON-based save/load implementation.                      |
+| `resources`                | Visual assets and saved layouts.                          |
 
 ---
 

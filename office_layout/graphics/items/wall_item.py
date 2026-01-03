@@ -1,9 +1,8 @@
 from typing import Optional
-from math import hypot
 
 from PyQt5.QtWidgets import QGraphicsRectItem, QGraphicsItem
 from PyQt5.QtGui import QBrush, QPen, QPainterPath
-from PyQt5.QtCore import Qt, QRectF, QPointF
+from PyQt5.QtCore import Qt, QRectF, QPointF, QLineF
 
 
 class WallItem(QGraphicsRectItem):
@@ -68,6 +67,49 @@ class WallItem(QGraphicsRectItem):
             return "br"
         return None
 
+    def get_endpoints_scene(self) -> tuple[QPointF, QPointF]:
+        """
+        Return centerline endpoints in scene coordinates.
+        This exists to stay compatible with older snapping code.
+        """
+        r = self.rect()
+        p = self.pos()
+
+        if self.orientation == "horizontal":
+            y = p.y() + r.height() / 2.0
+            start = QPointF(p.x(), y)
+            end = QPointF(p.x() + r.width(), y)
+            return start, end
+
+        x = p.x() + r.width() / 2.0
+        start = QPointF(x, p.y())
+        end = QPointF(x, p.y() + r.height())
+        return start, end
+
+    def get_snap_points_scene(self) -> list[QPointF]:
+        """
+        Return rectangle corner points in scene coordinates.
+        Use these for corner-to-corner snapping so walls visually touch.
+        """
+        r = self.rect()
+        p = self.pos()
+
+        left = p.x()
+        right = p.x() + r.width()
+        top = p.y()
+        bottom = p.y() + r.height()
+
+        return [
+            QPointF(left, top),
+            QPointF(left, bottom),
+            QPointF(right, top),
+            QPointF(right, bottom),
+        ]
+
+    @staticmethod
+    def distance(a: QPointF, b: QPointF) -> float:
+        return QLineF(a, b).length()
+
     # ----------------- hover -----------------
 
     def hoverMoveEvent(self, event):
@@ -124,7 +166,7 @@ class WallItem(QGraphicsRectItem):
                 r.setHeight(self.thickness)
                 r.moveCenter(QPointF(r.center().x(), cy))
 
-            else:  # vertical
+            else:
                 # change only height, keep thickness constant
                 if self._resize_corner in ("tl", "tr"):
                     new_top = pos.y()
@@ -160,7 +202,7 @@ class WallItem(QGraphicsRectItem):
         return {
             "type": "Wall",
             "x": p.x(),
-            "y": p.y() + self.thickness / 2.0,  # convert back to center line
+            "y": p.y() + self.thickness / 2.0,
             "width": r.width(),
             "height": r.height(),
             "rotation": self.rotation(),
