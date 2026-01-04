@@ -9,6 +9,9 @@ from office_layout.ui.toolbar import MainToolBar
 from office_layout.ui.statusbar import MainStatusBar
 from office_layout.ui.sidebar import Sidebar
 from office_layout.models.layout_model import LayoutModel
+from PyQt5.QtWidgets import QFileDialog, QMessageBox
+from office_layout.storage.json_io import save_layout, load_layout
+
 
 
 class MainWindow(QMainWindow):
@@ -93,9 +96,78 @@ class MainWindow(QMainWindow):
         self.status_bar.info("Layout validation not implemented yet")
 
     def save_plan(self):
-        # Later this can call storage/json_io.save_layout(path, self.layout_model)
-        self.status_bar.info("Save Plan clicked (not implemented)")
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Save layout", "", "JSON Files (*.json);;All Files (*)"
+        )
+        if not path:
+            self.status_bar.info("Save cancelled")
+            return
+
+        try:
+            self.scene.sync_model_from_items()
+            save_layout(path, self.layout_model)
+        except Exception as e:
+            QMessageBox.critical(self, "Save error", str(e))
+            self.status_bar.info("Save failed")
+            return
+
+        self.status_bar.info(f"Saved: {path}")
 
     def load_plan(self):
-        # Later this can call storage/json_io.load_layout(path) and scene.load_scene_data(...)
-        self.status_bar.info("Load Plan clicked (not implemented)")
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Open layout",
+            "",
+            "JSON Files (*.json);;All Files (*)",
+        )
+        if not path:
+            self.status_bar.info("Open cancelled")
+            return
+
+        try:
+            model = load_layout(path)
+        except Exception as e:
+            QMessageBox.critical(self, "Open error", str(e))
+            self.status_bar.info("Open failed")
+            return
+
+        self._apply_loaded_model(model)
+        self.status_bar.info(f"Loaded: {path}")
+
+    def _apply_loaded_model(self, model: LayoutModel) -> None:
+        """
+        Replace current model with the loaded one and rebuild the scene from it.
+        """
+        self.layout_model = model
+
+        # Prefer set_model (single authoritative rebuild path)
+        if hasattr(self.scene, "set_model") and callable(getattr(self.scene, "set_model")):
+            self.scene.set_model(model)
+            return
+
+        # Fallback: recreate scene if set_model does not exist
+        self._recreate_scene(model)
+
+    def _recreate_scene(self, model: LayoutModel) -> None:
+        """
+        Fallback robust: recreeaza scene + reconecteaza view-ul.
+        """
+        old_scene = self.scene
+        self.scene = OfficeScene(layout_model=model, parent=self)
+
+        self.view.setScene(self.scene)
+
+        # reconectare signal sidebar -> scene
+        try:
+            self.sidebar.object_list.currentTextChanged.disconnect()
+        except Exception:
+            pass
+        self.sidebar.object_list.currentTextChanged.connect(self.scene.set_object_type)
+
+        # pastreaza setarile de grid (daca vrei)
+        if hasattr(old_scene, "show_grid") and hasattr(self.scene, "show_grid"):
+            self.scene.show_grid = getattr(old_scene, "show_grid")
+
+        # optional: elibereaza vechiul scene
+        old_scene.deleteLater()
+

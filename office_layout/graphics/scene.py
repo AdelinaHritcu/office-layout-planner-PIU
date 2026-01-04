@@ -93,17 +93,27 @@ class OfficeScene(QGraphicsScene):
             "Desk": ObjectType.DESK,
             "Corner Desk": ObjectType.DESK,
             "Simple Table": ObjectType.DESK,
+
+            "Chair": ObjectType.CHAIR,
+
+            "Armchair": ObjectType.ARMCHAIR,
+            "Sofa": ObjectType.ARMCHAIR,
+
+            "Wall": ObjectType.WALL,
+            "Door": ObjectType.DOOR,
+
             "Table": ObjectType.MEETING_TABLE,
             "Table 3 Persons": ObjectType.MEETING_TABLE,
             "Coffee Table": ObjectType.MEETING_TABLE,
             "Dining Table": ObjectType.MEETING_TABLE,
+            "Pool Table": ObjectType.MEETING_TABLE,
             "Meeting Room": ObjectType.MEETING_TABLE,
-            "Chair": ObjectType.CHAIR,
-            "Armchair": ObjectType.ARMCHAIR,
-            "Sofa": ObjectType.ARMCHAIR,
-            "Wall": ObjectType.WALL,
-            # other UI types (Door, Sink, Toilet etc.) will use default
+
+            "Sink": ObjectType.SINK,
+            "Toilet": ObjectType.TOILET,
+            "Washbasin": ObjectType.WASHBASIN,
         }
+
         return mapping.get(ui_type, ObjectType.DESK)
 
     def _create_item_for_ui_type(self, ui_type: str, x: float, y: float) -> QGraphicsItem:
@@ -248,25 +258,21 @@ class OfficeScene(QGraphicsScene):
     def mousePressEvent(self, event):
         pos = event.scenePos()
 
-        # snap to grid if enabled
         if self.show_grid:
             pos.setX(round(pos.x() / self.grid_size) * self.grid_size)
             pos.setY(round(pos.y() / self.grid_size) * self.grid_size)
 
         clicked_item = self.itemAt(pos, QTransform())
 
-        # if there is a selection and user clicks on empty space,
-        # only clear selection; do not add a new item yet
-        if event.button() == Qt.LeftButton and clicked_item is None:
-            if self.selectedItems():
-                for s in self.selectedItems():
-                    s.setSelected(False)
-                return
+        # daca e selectat ceva si dai click pe gol, doar deselecteaza
+        if event.button() == Qt.LeftButton and clicked_item is None and self.selectedItems():
+            for s in self.selectedItems():
+                s.setSelected(False)
+            # nu return
 
-        # right click: delete movable item
+        # right click delete
         if event.button() == Qt.RightButton:
             if clicked_item and (clicked_item.flags() & QGraphicsItem.ItemIsMovable):
-                # if linked to model, remove from model too
                 logical_id = getattr(clicked_item, "logical_id", None)
                 if logical_id is not None:
                     self.layout_model.remove_object(logical_id)
@@ -274,27 +280,34 @@ class OfficeScene(QGraphicsScene):
                 del clicked_item
                 return
 
-        # left click: either start wall drawing or place normal item
         if event.button() == Qt.LeftButton:
             if self.current_type == "Wall":
-                # start wall drawing from this point
-                self.is_drawing_wall = True
-                self.wall_start_pos = pos
+                # IMPORTANT: daca ai dat click pe un perete existent, NU crea altul
+                if isinstance(clicked_item, WallItem):
+                    super().mousePressEvent(event)
+                    return
 
-                thickness = self.wall_thickness
-                # initial tiny horizontal wall; rect is local (0,0,length,thickness)
-                self.current_wall_item = WallItem(pos.x(), pos.y(), 1.0, thickness)
-                self.current_wall_item.orientation = "horizontal"
-                self.addItem(self.current_wall_item)
-                # also register in model
-                self._register_item_in_model(self.current_wall_item, "Wall")
+                # creezi perete nou doar pe spatiu liber
+                if clicked_item is None:
+                    self.is_drawing_wall = True
+                    self.wall_start_pos = pos
+
+                    thickness = self.wall_thickness
+                    min_len = 40.0  # ca sa nu fie punct mic
+                    self.current_wall_item = WallItem(pos.x(), pos.y(), min_len, thickness)
+                    self.current_wall_item.orientation = "horizontal"
+                    self.addItem(self.current_wall_item)
+                    self._register_item_in_model(self.current_wall_item, "Wall")
+                    return
+
+                # daca ai dat click pe alt obiect (desk/chair etc), lasa selectia normala
+                super().mousePressEvent(event)
                 return
+
             else:
-                # add new item only if empty space (and no selection to clear)
                 if clicked_item is None:
                     self.add_item_at(pos)
                     return
-                # if clicked on item, base class will handle selection/drag
 
         super().mousePressEvent(event)
 
@@ -350,8 +363,9 @@ class OfficeScene(QGraphicsScene):
             self.wall_start_pos = None
 
             if wall is not None:
-                #  snap endpoints to nearby wall endpoints
+                # snap endpoints to nearby wall endpoints
                 self._snap_wall_endpoints(wall, snap_dist=12.0)
+                self._sync_single_item_to_model(wall)
 
                 # clear previous selection and select the new wall
                 for s in self.selectedItems():
@@ -367,24 +381,32 @@ class OfficeScene(QGraphicsScene):
         super().mouseReleaseEvent(event)
 
         selected = self.selectedItems()
-        if selected:
-            item = selected[0]
-            logical_id = getattr(item, "logical_id", None)
+        if not selected:
+            return
 
-            if logical_id is not None:
-                pos = item.pos()
-                ok, msg = move_object(
-                    self.layout_model,
-                    logical_id,
-                    pos.x(),
-                    pos.y()
-                )
+        item = selected[0]
+        logical_id = getattr(item, "logical_id", None)
+        if logical_id is None:
+            return
 
-                if not ok:
-                    print("[VALIDATION] Move rejected:", msg)
-                    # revert item to old position from model
-                    model_obj = self.layout_model.get_object(logical_id)
-                    item.setPos(model_obj.x, model_obj.y)
+        # IMPORTANT: for walls, sync directly to model (avoid move_object pos convention mismatch)
+        if isinstance(item, WallItem):
+            self._sync_single_item_to_model(item)
+            return
+
+        pos = item.pos()
+        ok, msg = move_object(
+            self.layout_model,
+            logical_id,
+            pos.x(),
+            pos.y()
+        )
+
+        if not ok:
+            print("[VALIDATION] Move rejected:", msg)
+            model_obj = self.layout_model.get_object(logical_id)
+            if model_obj is not None:
+                item.setPos(model_obj.x, model_obj.y)
 
     # ------------------------------------------------------------------
     # KEYBOARD EVENTS (rotate)
@@ -413,74 +435,142 @@ class OfficeScene(QGraphicsScene):
     # SAVE / LOAD HELPERS (via LayoutModel)
     # ------------------------------------------------------------------
 
-    def get_scene_data(self) -> dict:
-        """
-        Export the logical layout (via LayoutModel) as a serializable dict.
-        We rebuild the model from current graphics items to ensure sync.
-        """
-        # rebuild model from current scene items
-        self.layout_model = LayoutModel(
-            room_width=self.sceneRect().width(),
-            room_height=self.sceneRect().height(),
-            grid_size=self.grid_size,
-        )
-
+    def sync_model_from_items(self) -> None:
         for item in self.items():
-            if item.flags() & QGraphicsItem.ItemIsMovable:
-                if hasattr(item, "to_dict"):
-                    d = item.to_dict()
-                    ui_type = d.get("type", "Desk")
-                    x = float(d.get("x", 0.0))
-                    y = float(d.get("y", 0.0))
-                    width = float(d.get("width", 50.0))
-                    height = float(d.get("height", 50.0))
-                    rotation = float(d.get("rotation", 0.0))
+            logical_id = getattr(item, "logical_id", None)
+            if logical_id is None:
+                continue
 
-                    object_type = self._map_ui_type_to_object_type(ui_type)
-                    metadata = {"ui_type": ui_type}
+            obj = self.layout_model.get_object(logical_id)
+            if obj is None:
+                continue
 
-                    layout_obj = self.layout_model.add_object(
-                        object_type=object_type,
-                        x=x,
-                        y=y,
-                        width=width,
-                        height=height,
-                        rotation=rotation,
-                        metadata=metadata,
-                    )
-                    setattr(item, "logical_id", layout_obj.id)
+            rotation = float(item.rotation()) if hasattr(item, "rotation") else 0.0
 
-        errors = validate_layout(self.layout_model)
-        if errors:
-            print("Layout validation errors:")
-            for err in errors:
-                print(err.code, err.message)
+            if isinstance(item, WallItem):
+                pts = item.get_snap_points_scene()
+                xs = [p.x() for p in pts]
+                ys = [p.y() for p in pts]
 
+                left, right = min(xs), max(xs)
+                top, bottom = min(ys), max(ys)
+
+                w = float(right - left)
+                h = float(bottom - top)
+
+                orient = "horizontal" if w >= h else "vertical"
+                item.orientation = orient
+
+                if orient == "horizontal":
+                    x = float(left)  # colț stânga real
+                    y = float((top + bottom) / 2.0)  # centerline y
+                else:
+                    x = float((left + right) / 2.0)  # centerline x
+                    y = float(top)  # sus real
+
+                obj.x = x
+                obj.y = y
+                obj.width = w
+                obj.height = h
+                obj.rotation = rotation
+                continue
+
+            # --- default items ---
+            pos = item.pos()
+            rect = item.rect() if hasattr(item, "rect") else item.boundingRect()
+
+            obj.x = float(pos.x())
+            obj.y = float(pos.y())
+            obj.width = float(rect.width())
+            obj.height = float(rect.height())
+            obj.rotation = rotation
+
+    def get_scene_data(self) -> dict:
+        self.sync_model_from_items()
         return self.layout_model.to_dict()
 
     def clear_scene(self):
-        """Remove all movable items from the scene."""
+        """Remove all placed items from the scene (movable + walls)."""
         items_to_remove = []
         for item in self.items():
-            if item.flags() & QGraphicsItem.ItemIsMovable:
+            if (item.flags() & QGraphicsItem.ItemIsMovable) or isinstance(item, WallItem):
                 items_to_remove.append(item)
 
         for item in items_to_remove:
             self.removeItem(item)
             del item
 
-    def load_scene_data(self, data: dict):
-        """
-        Populate the scene from a LayoutModel dictionary.
-        """
-        self.clear_scene()
+    def _sync_single_item_to_model(self, item):
+        logical_id = getattr(item, "logical_id", None)
+        if logical_id is None:
+            return
 
-        # rebuild model from dict
+        obj = self.layout_model.get_object(logical_id)
+        if obj is None:
+            return
+
+        rotation = float(item.rotation()) if hasattr(item, "rotation") else 0.0
+
+        if isinstance(item, WallItem):
+            pts = item.get_snap_points_scene()
+            xs = [p.x() for p in pts]
+            ys = [p.y() for p in pts]
+
+            left, right = min(xs), max(xs)
+            top, bottom = min(ys), max(ys)
+
+            w = float(right - left)
+            h = float(bottom - top)
+
+            orient = "horizontal" if w >= h else "vertical"
+            item.orientation = orient
+
+            if orient == "horizontal":
+                obj.x = float(left)
+                obj.y = float((top + bottom) / 2.0)
+            else:
+                obj.x = float((left + right) / 2.0)
+                obj.y = float(top)
+
+            obj.width = w
+            obj.height = h
+            obj.rotation = rotation
+            return
+
+        pos = item.pos()
+        rect = item.rect() if hasattr(item, "rect") else item.boundingRect()
+
+        obj.x = float(pos.x())
+        obj.y = float(pos.y())
+        obj.width = float(rect.width())
+        obj.height = float(rect.height())
+        obj.rotation = rotation
+
+    def load_scene_data(self, data: dict):
+        self.clear_scene()
         self.layout_model = LayoutModel.from_dict(data)
 
         for obj in self.layout_model.all_objects():
             ui_type = obj.metadata.get("ui_type", obj.type.name.title())
-            item = self._create_item_for_ui_type(ui_type, obj.x, obj.y)
+
+            if ui_type == "Wall":
+                t = float(self.wall_thickness)
+                item = WallItem(0.0, 0.0, 1.0, t)
+
+                item.setRect(0, 0, obj.width, obj.height)
+                item.orientation = "horizontal" if obj.width >= obj.height else "vertical"
+
+                t = float(getattr(item, "thickness", self.wall_thickness))
+                if item.orientation == "horizontal":
+                    item.setPos(obj.x, obj.y - t / 2.0)
+                else:
+                    item.setPos(obj.x - t / 2.0, obj.y)
+
+
+
+            else:
+                item = self._create_item_for_ui_type(ui_type, obj.x, obj.y)
+
             if item:
                 item.setRotation(obj.rotation)
                 self.addItem(item)
@@ -520,6 +610,44 @@ class OfficeScene(QGraphicsScene):
         delta = target_pt - w_pt
         wall.setPos(wall.pos() + delta)
 
+    def set_model(self, model: LayoutModel) -> None:
+        """
+        Attach a new LayoutModel to the scene and rebuild graphics items from it.
+        """
+        self.layout_model = model
+
+        # keep sceneRect consistent with loaded room size
+        self.setSceneRect(0, 0, model.room_width, model.room_height)
+
+        # optional: keep grid size from model if you want
+        self.grid_size = int(model.grid_size)
+
+        self.rebuild_from_model()
+
+    def rebuild_from_model(self) -> None:
+        self.clear_scene()
+
+        for obj in self.layout_model.all_objects():
+            ui_type = obj.metadata.get("ui_type", obj.type.name.title())
+            item = self._create_item_for_ui_type(ui_type, obj.x, obj.y)
+            if item:
+                if ui_type == "Wall" and isinstance(item, WallItem):
+                    t = float(self.wall_thickness)
+                    item = WallItem(0.0, 0.0, 1.0, t)
+
+                    item.setRect(0, 0, obj.width, obj.height)
+                    item.orientation = "horizontal" if obj.width >= obj.height else "vertical"
+
+                    t = float(getattr(item, "thickness", self.wall_thickness))
+                    if item.orientation == "horizontal":
+                        item.setPos(obj.x, obj.y - t / 2.0)
+                    else:
+                        item.setPos(obj.x - t / 2.0, obj.y)
+
+                item.setRotation(obj.rotation)
+                self.addItem(item)
+                setattr(item, "logical_id", obj.id)
+
     # ------------------------------------------------------------------
     # GRID DRAWING
     # ------------------------------------------------------------------
@@ -552,3 +680,4 @@ class OfficeScene(QGraphicsScene):
             y += grid
 
         painter.restore()
+

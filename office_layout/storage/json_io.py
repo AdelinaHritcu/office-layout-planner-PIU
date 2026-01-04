@@ -66,7 +66,7 @@ import os
 from pathlib import Path
 from typing import Any, Mapping
 
-from models.layout_model import LayoutModel
+from office_layout.models.layout_model import LayoutModel
 
 
 def save_layout(path: str | os.PathLike, layout_model: Any) -> None:
@@ -154,7 +154,6 @@ def load_layout(path: str | os.PathLike) -> LayoutModel:
     try:
         model = LayoutModel.from_dict(data)
     except Exception as e:
-        # Nu inghitim erorile, doar le re-impachetam cu context.
         raise ValueError(f"Failed to build LayoutModel from JSON in '{source}': {e}") from e
 
     return model
