@@ -5,7 +5,7 @@ from typing import Optional, Dict, Any
 
 from PyQt5.QtWidgets import QGraphicsScene, QGraphicsRectItem, QGraphicsItem
 from PyQt5.QtGui import QBrush, QPen, QTransform
-from PyQt5.QtCore import Qt, QRectF
+from PyQt5.QtCore import Qt, QRectF, QPointF
 
 from office_layout.graphics.items.base_item import ImageItem
 from office_layout.graphics.items.desk_item import DeskItem
@@ -350,6 +350,9 @@ class OfficeScene(QGraphicsScene):
             self.wall_start_pos = None
 
             if wall is not None:
+                #  snap endpoints to nearby wall endpoints
+                self._snap_wall_endpoints(wall, snap_dist=12.0)
+
                 # clear previous selection and select the new wall
                 for s in self.selectedItems():
                     s.setSelected(False)
@@ -482,6 +485,40 @@ class OfficeScene(QGraphicsScene):
                 item.setRotation(obj.rotation)
                 self.addItem(item)
                 setattr(item, "logical_id", obj.id)
+
+    def _snap_wall_endpoints(self, wall: WallItem, snap_dist: float = 12.0) -> None:
+        """
+        Snap wall corners (rectangle corner-to-corner) so walls visually touch without gaps.
+        """
+        if wall is None:
+            return
+
+        w_points = wall.get_snap_points_scene()
+
+        best_d = float("inf")
+        best = None  # (wall_point, target_point)
+
+        for item in self.items():
+            if item is wall:
+                continue
+            if not isinstance(item, WallItem):
+                continue
+
+            o_points = item.get_snap_points_scene()
+
+            for wp in w_points:
+                for op in o_points:
+                    d = WallItem.distance(wp, op)
+                    if d < best_d:
+                        best_d = d
+                        best = (wp, op)
+
+        if best is None or best_d > snap_dist:
+            return
+
+        w_pt, target_pt = best
+        delta = target_pt - w_pt
+        wall.setPos(wall.pos() + delta)
 
     # ------------------------------------------------------------------
     # GRID DRAWING
