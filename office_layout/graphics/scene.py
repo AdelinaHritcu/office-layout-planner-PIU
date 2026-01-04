@@ -1,7 +1,7 @@
 # file: office_layout/graphics/scene.py
 
 import os
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List, Tuple
 
 from PyQt5.QtWidgets import QGraphicsScene, QGraphicsRectItem, QGraphicsItem
 from PyQt5.QtGui import QBrush, QPen, QTransform
@@ -31,7 +31,9 @@ from office_layout.models.layout_model import LayoutModel, LayoutObject
 from office_layout.models.object_types import ObjectType
 
 from office_layout.algorithms.placement import can_place_object, move_object
-from office_layout.algorithms.validation import validate_layout
+from PyQt5.QtWidgets import QGraphicsPathItem, QGraphicsEllipseItem
+from PyQt5.QtGui import QPainterPath, QPen, QBrush
+from office_layout.algorithms.routing import find_shortest_path_to_exit
 
 class OfficeScene(QGraphicsScene):
     """Main 2D canvas for placing office elements."""
@@ -60,6 +62,8 @@ class OfficeScene(QGraphicsScene):
         self.current_wall_item: Optional[WallItem] = None
         self.wall_thickness = 10.0  # fixed wall thickness
 
+        self._path_item: Optional[QGraphicsPathItem] = None
+        self._start_marker: Optional[QGraphicsEllipseItem] = None
     # ------------------------------------------------------------------
     # general helpers
     # ------------------------------------------------------------------
@@ -224,6 +228,71 @@ class OfficeScene(QGraphicsScene):
     # item creation
     # ------------------------------------------------------------------
 
+    def _snap_door_to_nearest_wall(self, door: QGraphicsItem, max_dist: float = 18.0) -> None:
+        if door is None:
+            return
+
+        # Door rect in scene coords
+        drect = door.sceneBoundingRect()
+        dcx = drect.center().x()
+        dcy = drect.center().y()
+
+        best_wall = None
+        best_dist = float("inf")
+
+        for it in self.items():
+            if not isinstance(it, WallItem):
+                continue
+
+            wrect = it.sceneBoundingRect()
+            wx = wrect.center().x()
+            wy = wrect.center().y()
+
+            # quick distance check center-to-center
+            dist = ((wx - dcx) ** 2 + (wy - dcy) ** 2) ** 0.5
+            if dist < best_dist:
+                best_dist = dist
+                best_wall = it
+
+        if best_wall is None or best_dist > max_dist:
+            return
+
+        wrect = best_wall.sceneBoundingRect()
+        orient = getattr(best_wall, "orientation", "horizontal")
+        thickness = float(getattr(best_wall, "thickness", self.wall_thickness))
+
+        # Door size (assume door pos is top-left for most pixmap items)
+        # Use boundingRect width/height (local)
+        br = door.boundingRect()
+        dw = br.width()
+        dh = br.height()
+
+        # Snap:
+        # - If wall is horizontal => door goes on that wall line (y aligned), x clamped to wall segment
+        # - If wall is vertical   => door x aligned, y clamped
+        if orient == "horizontal":
+            # Wall "line" is at center y of its rect
+            wall_center_y = wrect.center().y()
+
+            # Place door so its center y = wall_center_y (looks glued)
+            new_y = wall_center_y - dh / 2.0
+
+            # Clamp x to wall length (door stays on wall)
+            left = wrect.left()
+            right = wrect.right()
+            new_x = max(left, min(dcx - dw / 2.0, right - dw))
+
+            door.setPos(new_x, new_y)
+
+        else:
+            wall_center_x = wrect.center().x()
+            new_x = wall_center_x - dw / 2.0
+
+            top = wrect.top()
+            bottom = wrect.bottom()
+            new_y = max(top, min(dcy - dh / 2.0, bottom - dh))
+
+            door.setPos(new_x, new_y)
     def add_item_at(self, pos):
         size = 50
         x = pos.x() - size / 2
@@ -236,16 +305,17 @@ class OfficeScene(QGraphicsScene):
         item = self._create_item_for_ui_type(ui_type, x, y)
 
         if item:
-            # link to model
+            self.addItem(item)
+
+            if ui_type == "Door":
+                self._snap_door_to_nearest_wall(item)
+
             self._register_item_in_model(item, ui_type)
 
-            # clear existing selection
             for s in self.selectedItems():
                 s.setSelected(False)
-
-            # add and select the new item
-            self.addItem(item)
             item.setSelected(True)
+
             try:
                 item.setFocus()
             except Exception:
@@ -263,6 +333,29 @@ class OfficeScene(QGraphicsScene):
             pos.setY(round(pos.y() / self.grid_size) * self.grid_size)
 
         clicked_item = self.itemAt(pos, QTransform())
+
+        # SHIFT + Left Click => set start & compute shortest path to exit
+        if event.button() == Qt.LeftButton and (event.modifiers() & Qt.ShiftModifier):
+            # keep model up to date
+            try:
+                self.sync_model_from_items()
+            except Exception:
+                pass
+
+            start_xy = (float(pos.x()), float(pos.y()))
+            pts = find_shortest_path_to_exit(self.layout_model, start_xy)
+
+            if pts is None:
+                self._clear_path_overlay()
+                # optional: still show start marker
+                self._draw_path_overlay(pos, [])
+                print("[ROUTING] No path to any exit.")
+            else:
+                self._draw_path_overlay(pos, pts)
+                print(f"[ROUTING] Path length (cells) = {len(pts)}")
+
+            event.accept()
+            return
 
         # daca e selectat ceva si dai click pe gol, doar deselecteaza
         if event.button() == Qt.LeftButton and clicked_item is None and self.selectedItems():
@@ -394,6 +487,10 @@ class OfficeScene(QGraphicsScene):
             self._sync_single_item_to_model(item)
             return
 
+        if isinstance(item, DoorItem):
+            self._snap_door_to_nearest_wall(item)
+            self._sync_single_item_to_model(item)
+
         pos = item.pos()
         ok, msg = move_object(
             self.layout_model,
@@ -500,7 +597,7 @@ class OfficeScene(QGraphicsScene):
             self.removeItem(item)
             del item
 
-    def _sync_single_item_to_model(self, item):
+    def _sync_single_item_to_model(self, item: QGraphicsItem) -> None:
         logical_id = getattr(item, "logical_id", None)
         if logical_id is None:
             return
@@ -509,42 +606,38 @@ class OfficeScene(QGraphicsScene):
         if obj is None:
             return
 
-        rotation = float(item.rotation()) if hasattr(item, "rotation") else 0.0
-
-        if isinstance(item, WallItem):
-            pts = item.get_snap_points_scene()
-            xs = [p.x() for p in pts]
-            ys = [p.y() for p in pts]
-
-            left, right = min(xs), max(xs)
-            top, bottom = min(ys), max(ys)
-
-            w = float(right - left)
-            h = float(bottom - top)
-
-            orient = "horizontal" if w >= h else "vertical"
-            item.orientation = orient
-
-            if orient == "horizontal":
-                obj.x = float(left)
-                obj.y = float((top + bottom) / 2.0)
-            else:
-                obj.x = float((left + right) / 2.0)
-                obj.y = float(top)
-
-            obj.width = w
-            obj.height = h
-            obj.rotation = rotation
-            return
-
         pos = item.pos()
-        rect = item.rect() if hasattr(item, "rect") else item.boundingRect()
 
-        obj.x = float(pos.x())
-        obj.y = float(pos.y())
-        obj.width = float(rect.width())
-        obj.height = float(rect.height())
-        obj.rotation = rotation
+        # rect source: QGraphicsRectItem -> rect(), Pixmap/others -> boundingRect()
+        if hasattr(item, "rect") and callable(getattr(item, "rect")):
+            r = item.rect()
+            w = float(r.width())
+            h = float(r.height())
+        else:
+            br = item.boundingRect()
+            w = float(br.width())
+            h = float(br.height())
+
+        x = float(pos.x())
+        y = float(pos.y())
+        rot = float(item.rotation()) if hasattr(item, "rotation") else 0.0
+
+        # Walls are stored with a special convention in model:
+        # - horizontal: x = left, y = centerline_y
+        # - vertical:   x = centerline_x, y = top
+        if isinstance(item, WallItem):
+            thickness = float(getattr(item, "thickness", 0.0))
+            orient = getattr(item, "orientation", "horizontal")
+            if orient == "horizontal":
+                y = float(pos.y() + thickness / 2.0)
+            else:
+                x = float(pos.x() + thickness / 2.0)
+
+        obj.x = x
+        obj.y = y
+        obj.width = w
+        obj.height = h
+        obj.rotation = rot
 
     def load_scene_data(self, data: dict):
         self.clear_scene()
@@ -652,6 +745,43 @@ class OfficeScene(QGraphicsScene):
     # GRID DRAWING
     # ------------------------------------------------------------------
 
+    def _clear_path_overlay(self) -> None:
+        if self._path_item is not None:
+            self.removeItem(self._path_item)
+            self._path_item = None
+        if self._start_marker is not None:
+            self.removeItem(self._start_marker)
+            self._start_marker = None
+
+    def _draw_path_overlay(self, start_xy: QPointF, points: List[Tuple[float, float]]) -> None:
+        self._clear_path_overlay()
+
+        # start marker
+        r = 6.0
+        self._start_marker = QGraphicsEllipseItem(start_xy.x() - r, start_xy.y() - r, 2 * r, 2 * r)
+        self._start_marker.setBrush(QBrush(Qt.blue))
+        self._start_marker.setPen(QPen(Qt.blue, 1))
+        self._start_marker.setZValue(10_000)
+        self._start_marker.setFlag(QGraphicsItem.ItemIsSelectable, False)
+        self._start_marker.setFlag(QGraphicsItem.ItemIsMovable, False)
+        self.addItem(self._start_marker)
+
+        if not points:
+            return
+
+        path = QPainterPath()
+        path.moveTo(points[0][0], points[0][1])
+        for x, y in points[1:]:
+            path.lineTo(x, y)
+
+        self._path_item = QGraphicsPathItem(path)
+        pen = QPen(Qt.red, 3)
+        self._path_item.setPen(pen)
+        self._path_item.setZValue(9_999)
+        self._path_item.setFlag(QGraphicsItem.ItemIsSelectable, False)
+        self._path_item.setFlag(QGraphicsItem.ItemIsMovable, False)
+        self.addItem(self._path_item)
+
     def drawBackground(self, painter, rect: QRectF):
         super().drawBackground(painter, rect)
 
@@ -680,4 +810,5 @@ class OfficeScene(QGraphicsScene):
             y += grid
 
         painter.restore()
+
 

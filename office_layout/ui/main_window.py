@@ -11,6 +11,7 @@ from office_layout.ui.sidebar import Sidebar
 from office_layout.models.layout_model import LayoutModel
 from PyQt5.QtWidgets import QFileDialog, QMessageBox
 from office_layout.storage.json_io import save_layout, load_layout
+from office_layout.algorithms.validation import validate_layout as run_validation
 
 
 
@@ -39,6 +40,7 @@ class MainWindow(QMainWindow):
             room_height=600,      # should match sceneRect height
             grid_size=40.0,
         )
+        self.layout_model.exit_points = [{"x": 899.0, "y": 300.0}]
 
         # Pass the model to the scene (and this window as Qt parent)
         self.scene = OfficeScene(layout_model=self.layout_model, parent=self)
@@ -92,8 +94,27 @@ class MainWindow(QMainWindow):
         self.status_bar.info(f"Grid {state}")
 
     def validate_layout(self):
-        # Here we will later call validation.validate_layout(self.layout_model)
-        self.status_bar.info("Layout validation not implemented yet")
+        try:
+            self.scene.sync_model_from_items()
+            errors = run_validation(self.layout_model)
+        except Exception as e:
+            QMessageBox.critical(self, "Validation error", str(e))
+            self.status_bar.info("Validation failed")
+            return
+
+        if not errors:
+            QMessageBox.information(self, "Validation", "Layout is valid.")
+            self.status_bar.info("Layout valid")
+            return
+
+        lines = []
+        for idx, err in enumerate(errors[:25], start=1):
+            lines.append(f"{idx}. [{err.code}] {err.message}")
+        if len(errors) > 25:
+            lines.append(f"... and {len(errors) - 25} more.")
+
+        QMessageBox.warning(self, "Validation issues", "\n".join(lines))
+        self.status_bar.info(f"Validation: {len(errors)} issue(s)")
 
     def save_plan(self):
         path, _ = QFileDialog.getSaveFileName(
