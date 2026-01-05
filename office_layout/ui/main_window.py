@@ -14,7 +14,6 @@ from office_layout.storage.json_io import save_layout, load_layout
 from office_layout.algorithms.validation import validate_layout as run_validation
 
 
-
 class MainWindow(QMainWindow):
     """Main application window – defines the general UI layout."""
 
@@ -40,10 +39,8 @@ class MainWindow(QMainWindow):
             room_height=600,      # should match sceneRect height
             grid_size=40.0,
         )
-        #self.layout_model.exit_points = [{"x": 899.0, "y": 300.0}]
-        self.scene = OfficeScene(layout_model=self.layout_model, parent=self)
 
-        # Pass the model to the scene (and this window as Qt parent)
+        # Create scene with the model
         self.scene = OfficeScene(layout_model=self.layout_model, parent=self)
 
         # Graphics view that displays the scene
@@ -65,7 +62,8 @@ class MainWindow(QMainWindow):
 
         # === SIGNAL CONNECTIONS ===
         # Sidebar → scene / actions
-        self.sidebar.object_list.currentTextChanged.connect(self.scene.set_object_type)
+        # When picking a tool from sidebar, leave Select mode (cursor)
+        self.sidebar.object_list.currentTextChanged.connect(self.on_sidebar_type_changed)
         self.sidebar.btn_save.clicked.connect(self.save_plan)
         self.sidebar.btn_load.clicked.connect(self.load_plan)
 
@@ -75,9 +73,30 @@ class MainWindow(QMainWindow):
         self.toolbar.toggle_grid_action.triggered.connect(self.toggle_grid)
         self.toolbar.validate_action.triggered.connect(self.validate_layout)
 
+        if hasattr(self.toolbar, "undo_action"):
+            self.toolbar.undo_action.triggered.connect(self.undo)
+
+        if hasattr(self.toolbar, "redo_action"):
+            self.toolbar.redo_action.triggered.connect(self.redo)
+
+        # Select mode (cursor): prevents placement on empty click
+        if hasattr(self.toolbar, "select_action"):
+            self.toolbar.select_action.toggled.connect(self.toggle_select_mode)
+
         # Default selection
         if self.sidebar.object_list.count() > 0:
             self.sidebar.object_list.setCurrentRow(0)
+
+    # === SIDEBAR HANDLER ===
+
+    def on_sidebar_type_changed(self, ui_type: str):
+        """Set placement tool from sidebar and disable Select mode."""
+        if hasattr(self.toolbar, "select_action"):
+            try:
+                self.toolbar.select_action.setChecked(False)
+            except Exception:
+                pass
+        self.scene.set_object_type(ui_type)
 
     # === ACTION METHODS ===
 
@@ -93,6 +112,35 @@ class MainWindow(QMainWindow):
         self.scene.toggle_grid()
         state = "ON" if self.scene.show_grid else "OFF"
         self.status_bar.info(f"Grid {state}")
+
+    def toggle_select_mode(self, checked: bool):
+        """Toggle cursor mode: select/move without placing new objects."""
+        if checked:
+            self.scene.set_object_type("Select")
+            self.status_bar.info("Select mode")
+            return
+
+        # Back to current sidebar tool (or Desk)
+        item = self.sidebar.object_list.currentItem()
+        ui_type = item.text() if item else "Desk"
+        self.scene.set_object_type(ui_type)
+        self.status_bar.info("Place mode")
+
+    def undo(self):
+        """Undo last change (scene must implement undo())."""
+        if hasattr(self.scene, "undo") and callable(getattr(self.scene, "undo")):
+            self.scene.undo()
+            self.status_bar.info("Undo")
+        else:
+            self.status_bar.info("Undo not available")
+
+    def redo(self):
+        """Redo last undone change (scene must implement redo())."""
+        if hasattr(self.scene, "redo") and callable(getattr(self.scene, "redo")):
+            self.scene.redo()
+            self.status_bar.info("Redo")
+        else:
+            self.status_bar.info("Redo not available")
 
     def validate_layout(self):
         try:
@@ -157,9 +205,7 @@ class MainWindow(QMainWindow):
         self.status_bar.info(f"Loaded: {path}")
 
     def _apply_loaded_model(self, model: LayoutModel) -> None:
-        """
-        Replace current model with the loaded one and rebuild the scene from it.
-        """
+        """Replace current model and rebuild the scene from it."""
         self.layout_model = model
 
         # Prefer set_model (single authoritative rebuild path)
@@ -171,25 +217,20 @@ class MainWindow(QMainWindow):
         self._recreate_scene(model)
 
     def _recreate_scene(self, model: LayoutModel) -> None:
-        """
-        Fallback robust: recreeaza scene + reconecteaza view-ul.
-        """
+        """Fallback: recreate scene and reconnect signals."""
         old_scene = self.scene
         self.scene = OfficeScene(layout_model=model, parent=self)
 
         self.view.setScene(self.scene)
 
-        # reconectare signal sidebar -> scene
         try:
             self.sidebar.object_list.currentTextChanged.disconnect()
         except Exception:
             pass
-        self.sidebar.object_list.currentTextChanged.connect(self.scene.set_object_type)
+        self.sidebar.object_list.currentTextChanged.connect(self.on_sidebar_type_changed)
 
-        # pastreaza setarile de grid (daca vrei)
+        # Keep grid state (optional)
         if hasattr(old_scene, "show_grid") and hasattr(self.scene, "show_grid"):
             self.scene.show_grid = getattr(old_scene, "show_grid")
 
-        # optional: elibereaza vechiul scene
         old_scene.deleteLater()
-

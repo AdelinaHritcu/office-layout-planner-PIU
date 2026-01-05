@@ -1,9 +1,13 @@
 # file: office_layout/graphics/scene.py
 
 import os
-from typing import Optional, Dict, Any, Tuple, List
+from typing import Optional, Dict, Any, List
 
-from PyQt5.QtWidgets import QGraphicsScene, QGraphicsRectItem, QGraphicsItem
+from PyQt5.QtWidgets import (
+    QGraphicsScene,
+    QGraphicsRectItem,
+    QGraphicsItem,
+)
 from PyQt5.QtGui import QBrush, QPen, QTransform
 from PyQt5.QtCore import Qt, QRectF, QPointF
 
@@ -28,13 +32,12 @@ from office_layout.graphics.items.sofa_item import SofaItem
 from office_layout.graphics.items.table_item import TableItem
 from office_layout.graphics.items.table_3person_item import Table3PersonsItem
 from office_layout.graphics.items.exit_item import ExitItem
+
 from office_layout.models.layout_model import LayoutModel
 from office_layout.models.object_types import ObjectType
 
-from office_layout.algorithms.placement import can_place_object, move_object
-from PyQt5.QtWidgets import QGraphicsPathItem, QGraphicsEllipseItem
-from PyQt5.QtGui import QPainterPath, QPen, QBrush
-from office_layout.algorithms.routing import find_shortest_path_to_exit
+from office_layout.algorithms.placement import move_object
+
 
 class OfficeScene(QGraphicsScene):
     """Main 2D canvas for placing office elements."""
@@ -63,8 +66,17 @@ class OfficeScene(QGraphicsScene):
         self.current_wall_item: Optional[WallItem] = None
         self.wall_thickness = 10.0  # fixed wall thickness
 
+        # --- Undo/Redo history (snapshot-based) ---
+        self._undo_stack: List[dict] = []
+        self._redo_stack: List[dict] = []
+        self._history_limit: int = 80
+        self._history_suspended: bool = False
+
         # rebuild exit markers if model already has them
         self._rebuild_exit_markers_from_model()
+
+        # initial snapshot (so first undo works)
+        self._push_undo_state()
 
     # ------------------------------------------------------------------
     # general helpers
@@ -84,15 +96,61 @@ class OfficeScene(QGraphicsScene):
         return snapped_x, snapped_y
 
     # ------------------------------------------------------------------
+    # Undo / Redo helpers
+    # ------------------------------------------------------------------
+
+    def _push_undo_state(self) -> None:
+        """Save a snapshot of current scene/model state."""
+        if self._history_suspended:
+            return
+        snap = self.get_scene_data()  # includes exit_points
+        self._undo_stack.append(snap)
+        if len(self._undo_stack) > self._history_limit:
+            self._undo_stack.pop(0)
+        self._redo_stack.clear()
+
+    def can_undo(self) -> bool:
+        return len(self._undo_stack) > 1
+
+    def can_redo(self) -> bool:
+        return len(self._redo_stack) > 0
+
+    def undo(self) -> None:
+        """Undo last change (restore previous snapshot)."""
+        if not self.can_undo():
+            return
+
+        current = self.get_scene_data()
+        self._redo_stack.append(current)
+
+        # drop current, restore previous
+        self._undo_stack.pop()
+        target = self._undo_stack[-1]
+
+        self._history_suspended = True
+        self.load_scene_data(target)
+        self._history_suspended = False
+
+    def redo(self) -> None:
+        """Redo last undone change (restore next snapshot)."""
+        if not self.can_redo():
+            return
+
+        target = self._redo_stack.pop()
+
+        self._history_suspended = True
+        self.load_scene_data(target)
+        self._history_suspended = False
+
+        # redone state becomes current
+        self._undo_stack.append(self.get_scene_data())
+
+    # ------------------------------------------------------------------
     # Exit marker support (NOT a LayoutObject)
     # ------------------------------------------------------------------
 
     def _create_exit_marker(self, x: float, y: float) -> QGraphicsItem:
-        """
-        Create an ExitItem centered at (x, y).
-        ExitItem internally uses ImageItem, which is usually positioned by top-left,
-        so we offset by half bounding rect.
-        """
+        """Create an ExitItem centered at (x, y)."""
         it = ExitItem(0.0, 0.0)
 
         # center the pixmap on requested point
@@ -231,7 +289,6 @@ class OfficeScene(QGraphicsScene):
 
     def _register_item_in_model(self, item: QGraphicsItem, ui_type: str):
         if not hasattr(self, "layout_model") or self.layout_model is None:
-            print("[DEBUG] No layout_model attached to scene, skipping registration.")
             return None
 
         # Exit markers are not LayoutObjects
@@ -264,8 +321,7 @@ class OfficeScene(QGraphicsScene):
             setattr(item, "logical_id", layout_obj.id)
             return layout_obj
 
-        except Exception as e:
-            print("[ERROR] _register_item_in_model failed:", repr(e))
+        except Exception:
             return None
 
     # ------------------------------------------------------------------
@@ -275,8 +331,15 @@ class OfficeScene(QGraphicsScene):
     def add_item_at(self, pos: QPointF):
         ui_type = self.current_type
 
+        # Select tool should never place
+        if ui_type == "Select":
+            return
+
         # Exit tool: place a marker and store in layout_model.exit_points
         if ui_type == "Exit":
+            # undo snapshot before change
+            self._push_undo_state()
+
             x, y = float(pos.x()), float(pos.y())
             if self.show_grid:
                 x, y = self.snap_to_grid(x, y)
@@ -329,6 +392,15 @@ class OfficeScene(QGraphicsScene):
 
         clicked_item = self.itemAt(pos, QTransform())
 
+        # --- Select tool: cursor only, no placement ---
+        if self.current_type == "Select":
+            if event.button() == Qt.LeftButton and clicked_item is None and self.selectedItems():
+                # click empty -> deselect
+                for s in self.selectedItems():
+                    s.setSelected(False)
+            super().mousePressEvent(event)
+            return
+
         # deselect on empty click, but do not return (allow new placement)
         if event.button() == Qt.LeftButton and clicked_item is None and self.selectedItems():
             for s in self.selectedItems():
@@ -337,6 +409,9 @@ class OfficeScene(QGraphicsScene):
         # right click delete
         if event.button() == Qt.RightButton:
             if clicked_item and (clicked_item.flags() & QGraphicsItem.ItemIsMovable):
+                # undo snapshot before delete
+                self._push_undo_state()
+
                 # exit marker delete
                 if self._is_exit_marker(clicked_item):
                     self.removeItem(clicked_item)
@@ -360,6 +435,9 @@ class OfficeScene(QGraphicsScene):
                     return
 
                 if clicked_item is None:
+                    # undo snapshot before starting wall
+                    self._push_undo_state()
+
                     self.is_drawing_wall = True
                     self.wall_start_pos = pos
 
@@ -389,6 +467,8 @@ class OfficeScene(QGraphicsScene):
 
             # Normal objects: place only on empty
             if clicked_item is None:
+                # undo snapshot before placement
+                self._push_undo_state()
                 self.add_item_at(pos)
                 return
 
@@ -464,12 +544,27 @@ class OfficeScene(QGraphicsScene):
 
         # If an exit marker was moved, update model exit points
         if self._is_exit_marker(item):
+            # snapshot only if actually moved is hard to detect; safe to snapshot on release
+            self._push_undo_state()
             self._sync_exit_points_from_markers()
             return
 
         logical_id = getattr(item, "logical_id", None)
         if logical_id is None:
             return
+
+        # detect meaningful change before snapshot (avoid no-op history)
+        model_obj = self.layout_model.get_object(logical_id)
+        if model_obj is None:
+            return
+
+        old_x, old_y, old_rot = float(model_obj.x), float(model_obj.y), float(model_obj.rotation)
+        new_pos = item.pos()
+        new_rot = float(item.rotation()) if hasattr(item, "rotation") else 0.0
+
+        changed = (abs(new_pos.x() - old_x) > 0.01) or (abs(new_pos.y() - old_y) > 0.01) or (abs(new_rot - old_rot) > 0.01)
+        if changed:
+            self._push_undo_state()
 
         # keep model in sync for all items
         self._sync_single_item_to_model(item)
@@ -483,7 +578,7 @@ class OfficeScene(QGraphicsScene):
         )
 
         if not ok:
-            print("[VALIDATION] Move rejected:", msg)
+            # Move rejected -> revert graphics to model position
             model_obj = self.layout_model.get_object(logical_id)
             if model_obj is not None:
                 if isinstance(item, WallItem):
@@ -505,6 +600,10 @@ class OfficeScene(QGraphicsScene):
         if not selected:
             super().keyPressEvent(event)
             return
+
+        # no rotation in Select mode? (optional) - keep allowed
+        if event.key() in (Qt.Key_R, Qt.Key_Left, Qt.Key_Right):
+            self._push_undo_state()
 
         if event.key() == Qt.Key_R:
             for item in selected:
