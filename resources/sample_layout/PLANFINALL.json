@@ -1,0 +1,1087 @@
+{
+  "exit_points": [
+    {
+      "x": 1071.5,
+      "y": 572.5
+    },
+    {
+      "x": 18.5,
+      "y": 298.5
+    }
+  ],
+  "objects": [
+    {
+      "height": 10.0,
+      "id": 1,
+      "metadata": {
+        "ui_type": "Wall"
+      },
+      "rotation": 0.0,
+      "type": "wall",
+      "width": 1079.0,
+      "x": 6.0,
+      "y": 8.0
+    },
+    {
+      "height": 10.0,
+      "id": 2,
+      "metadata": {
+        "ui_type": "Wall"
+      },
+      "rotation": 0.0,
+      "type": "wall",
+      "width": 1068.0,
+      "x": 11.0,
+      "y": 707.0
+    },
+    {
+      "height": 272.0,
+      "id": 3,
+      "metadata": {
+        "ui_type": "Wall"
+      },
+      "rotation": 0.0,
+      "type": "wall",
+      "width": 10.0,
+      "x": 8.0,
+      "y": 6.0
+    },
+    {
+      "height": 548.0,
+      "id": 4,
+      "metadata": {
+        "ui_type": "Wall"
+      },
+      "rotation": 0.0,
+      "type": "wall",
+      "width": 10.0,
+      "x": 1082.0,
+      "y": 3.0
+    },
+    {
+      "height": 420.0,
+      "id": 10,
+      "metadata": {
+        "ui_type": "Wall"
+      },
+      "rotation": 0.0,
+      "type": "wall",
+      "width": 10.0,
+      "x": 376.0,
+      "y": 236.0
+    },
+    {
+      "height": 10.0,
+      "id": 20,
+      "metadata": {
+        "ui_type": "Wall"
+      },
+      "rotation": 0.0,
+      "type": "wall",
+      "width": 321.5,
+      "x": 13.5,
+      "y": 173.0
+    },
+    {
+      "height": 10.0,
+      "id": 21,
+      "metadata": {
+        "ui_type": "Wall"
+      },
+      "rotation": 0.0,
+      "type": "wall",
+      "width": 365.5,
+      "x": 9.5,
+      "y": 526.0
+    },
+    {
+      "height": 10.0,
+      "id": 22,
+      "metadata": {
+        "ui_type": "Wall"
+      },
+      "rotation": 0.0,
+      "type": "wall",
+      "width": 375.0,
+      "x": 707.5,
+      "y": 200.0
+    },
+    {
+      "height": 10.0,
+      "id": 23,
+      "metadata": {
+        "ui_type": "Wall"
+      },
+      "rotation": 0.0,
+      "type": "wall",
+      "width": 375.0,
+      "x": 707.5,
+      "y": 400.0
+    },
+    {
+      "height": 51.0,
+      "id": 30,
+      "metadata": {
+        "ui_type": "Door"
+      },
+      "rotation": 180.0,
+      "type": "door",
+      "width": 51.0,
+      "x": 324.0,
+      "y": 61.0
+    },
+    {
+      "height": 51.0,
+      "id": 31,
+      "metadata": {
+        "ui_type": "Door"
+      },
+      "rotation": 450.0,
+      "type": "door",
+      "width": 51.0,
+      "x": 178.0,
+      "y": 320.0
+    },
+    {
+      "height": 51.0,
+      "id": 32,
+      "metadata": {
+        "ui_type": "Door"
+      },
+      "rotation": 540.0,
+      "type": "door",
+      "width": 51.0,
+      "x": 370.0,
+      "y": 652.0
+    },
+    {
+      "height": 51.0,
+      "id": 33,
+      "metadata": {
+        "ui_type": "Door"
+      },
+      "rotation": 0.0,
+      "type": "door",
+      "width": 51.0,
+      "x": 667.0,
+      "y": 316.0
+    },
+    {
+      "height": 51.0,
+      "id": 102,
+      "metadata": {
+        "ui_type": "Corner Desk"
+      },
+      "rotation": 0.0,
+      "type": "desk",
+      "width": 51.0,
+      "x": 14.0,
+      "y": 29.0
+    },
+    {
+      "height": 51.0,
+      "id": 200,
+      "metadata": {
+        "ui_type": "Sink"
+      },
+      "rotation": 0.0,
+      "type": "sink",
+      "width": 51.0,
+      "x": 1021.9999999999999,
+      "y": 34.0
+    },
+    {
+      "height": 51.0,
+      "id": 201,
+      "metadata": {
+        "ui_type": "Dining Table"
+      },
+      "rotation": 180.0,
+      "type": "meeting_table",
+      "width": 51.0,
+      "x": 912.0,
+      "y": 34.00000000000001
+    },
+    {
+      "height": 51.0,
+      "id": 210,
+      "metadata": {
+        "ui_type": "Toilet"
+      },
+      "rotation": 90.0,
+      "type": "toilet",
+      "width": 51.0,
+      "x": 1017.0,
+      "y": 207.0
+    },
+    {
+      "height": 51.0,
+      "id": 211,
+      "metadata": {
+        "ui_type": "Washbasin"
+      },
+      "rotation": 270.0,
+      "type": "washbasin",
+      "width": 51.0,
+      "x": 1020.0,
+      "y": 347.0
+    },
+    {
+      "height": 51.0,
+      "id": 221,
+      "metadata": {
+        "ui_type": "Sofa"
+      },
+      "rotation": 360.0,
+      "type": "armchair",
+      "width": 51.0,
+      "x": 293.0,
+      "y": 542.0
+    },
+    {
+      "height": 51.0,
+      "id": 222,
+      "metadata": {
+        "ui_type": "Pool Table"
+      },
+      "rotation": 450.0,
+      "type": "meeting_table",
+      "width": 51.0,
+      "x": 225.0,
+      "y": 617.9999999999999
+    },
+    {
+      "height": 51.0,
+      "id": 230,
+      "metadata": {
+        "ui_type": "Right"
+      },
+      "rotation": 180.0,
+      "type": "desk",
+      "width": 51.0,
+      "x": 1014.0,
+      "y": 214.0
+    },
+    {
+      "height": 10.0,
+      "id": 231,
+      "metadata": {
+        "ui_type": "Wall"
+      },
+      "rotation": 90.0,
+      "type": "wall",
+      "width": 393.0,
+      "x": 12.0,
+      "y": 325.0
+    },
+    {
+      "height": 10.0,
+      "id": 232,
+      "metadata": {
+        "ui_type": "Wall"
+      },
+      "rotation": 90.0,
+      "type": "wall",
+      "width": 65.0,
+      "x": 337.0,
+      "y": 118.0
+    },
+    {
+      "height": 10.0,
+      "id": 233,
+      "metadata": {
+        "ui_type": "Wall"
+      },
+      "rotation": 90.0,
+      "type": "wall",
+      "width": 47.0,
+      "x": 336.0,
+      "y": 8.0
+    },
+    {
+      "height": 10.0,
+      "id": 235,
+      "metadata": {
+        "ui_type": "Wall"
+      },
+      "rotation": 0.0,
+      "type": "wall",
+      "width": 152.0,
+      "x": 221.0,
+      "y": 364.0
+    },
+    {
+      "height": 10.0,
+      "id": 236,
+      "metadata": {
+        "ui_type": "Wall"
+      },
+      "rotation": 0.0,
+      "type": "wall",
+      "width": 170.0,
+      "x": 9.0,
+      "y": 364.0
+    },
+    {
+      "height": 51.0,
+      "id": 244,
+      "metadata": {
+        "ui_type": "Desk"
+      },
+      "rotation": 90.0,
+      "type": "desk",
+      "width": 51.0,
+      "x": 28.000000000000007,
+      "y": 441.00000000000006
+    },
+    {
+      "height": 51.0,
+      "id": 245,
+      "metadata": {
+        "ui_type": "Desk"
+      },
+      "rotation": 90.0,
+      "type": "desk",
+      "width": 51.0,
+      "x": 294.0,
+      "y": 442.9999999999999
+    },
+    {
+      "height": 51.0,
+      "id": 246,
+      "metadata": {
+        "ui_type": "Desk"
+      },
+      "rotation": 90.0,
+      "type": "desk",
+      "width": 51.0,
+      "x": 118.0,
+      "y": 440.0
+    },
+    {
+      "height": 51.0,
+      "id": 247,
+      "metadata": {
+        "ui_type": "Desk"
+      },
+      "rotation": 90.0,
+      "type": "desk",
+      "width": 51.0,
+      "x": 208.0,
+      "y": 442.0
+    },
+    {
+      "height": 51.0,
+      "id": 252,
+      "metadata": {
+        "ui_type": "Right"
+      },
+      "rotation": 180.0,
+      "type": "desk",
+      "width": 51.0,
+      "x": 941.0,
+      "y": 214.0
+    },
+    {
+      "height": 51.0,
+      "id": 253,
+      "metadata": {
+        "ui_type": "Right"
+      },
+      "rotation": 180.0,
+      "type": "desk",
+      "width": 51.0,
+      "x": 870.0,
+      "y": 214.0
+    },
+    {
+      "height": 51.0,
+      "id": 256,
+      "metadata": {
+        "ui_type": "Toilet"
+      },
+      "rotation": 90.0,
+      "type": "toilet",
+      "width": 51.0,
+      "x": 944.0,
+      "y": 208.0
+    },
+    {
+      "height": 51.0,
+      "id": 257,
+      "metadata": {
+        "ui_type": "Toilet"
+      },
+      "rotation": 90.0,
+      "type": "toilet",
+      "width": 51.0,
+      "x": 871.0,
+      "y": 209.0
+    },
+    {
+      "height": 51.0,
+      "id": 258,
+      "metadata": {
+        "ui_type": "Washbasin"
+      },
+      "rotation": 270.0,
+      "type": "washbasin",
+      "width": 51.0,
+      "x": 945.0,
+      "y": 346.0
+    },
+    {
+      "height": 51.0,
+      "id": 259,
+      "metadata": {
+        "ui_type": "Washbasin"
+      },
+      "rotation": 270.0,
+      "type": "washbasin",
+      "width": 51.0,
+      "x": 881.0,
+      "y": 347.0
+    },
+    {
+      "height": 51.0,
+      "id": 260,
+      "metadata": {
+        "ui_type": "Right"
+      },
+      "rotation": 180.0,
+      "type": "desk",
+      "width": 51.0,
+      "x": 797.0,
+      "y": 214.0
+    },
+    {
+      "height": 51.0,
+      "id": 261,
+      "metadata": {
+        "ui_type": "Toilet"
+      },
+      "rotation": 90.0,
+      "type": "toilet",
+      "width": 51.0,
+      "x": 801.0,
+      "y": 211.0
+    },
+    {
+      "height": 51.0,
+      "id": 262,
+      "metadata": {
+        "ui_type": "Toilet"
+      },
+      "rotation": 90.0,
+      "type": "toilet",
+      "width": 51.0,
+      "x": 726.0,
+      "y": 210.0
+    },
+    {
+      "height": 51.0,
+      "id": 263,
+      "metadata": {
+        "ui_type": "Right"
+      },
+      "rotation": 180.0,
+      "type": "desk",
+      "width": 51.0,
+      "x": 723.9999999999999,
+      "y": 214.0
+    },
+    {
+      "height": 51.0,
+      "id": 266,
+      "metadata": {
+        "ui_type": "Washbasin"
+      },
+      "rotation": 270.0,
+      "type": "washbasin",
+      "width": 51.0,
+      "x": 805.0,
+      "y": 346.0
+    },
+    {
+      "height": 51.0,
+      "id": 267,
+      "metadata": {
+        "ui_type": "Washbasin"
+      },
+      "rotation": 270.0,
+      "type": "washbasin",
+      "width": 51.0,
+      "x": 730.0,
+      "y": 346.0
+    },
+    {
+      "height": 76.0,
+      "id": 268,
+      "metadata": {
+        "ui_type": "Wall"
+      },
+      "rotation": 0.0,
+      "type": "wall",
+      "width": 10.0,
+      "x": 708.0,
+      "y": 9.0
+    },
+    {
+      "height": 10.0,
+      "id": 269,
+      "metadata": {
+        "ui_type": "Wall"
+      },
+      "rotation": 450.0,
+      "type": "wall",
+      "width": 186.0,
+      "x": 714.0,
+      "y": 134.0
+    },
+    {
+      "height": 10.0,
+      "id": 270,
+      "metadata": {
+        "ui_type": "Wall"
+      },
+      "rotation": 90.0,
+      "type": "wall",
+      "width": 54.0,
+      "x": 715.0,
+      "y": 370.0
+    },
+    {
+      "height": 51.0,
+      "id": 273,
+      "metadata": {
+        "ui_type": "Sofa"
+      },
+      "rotation": 180.0,
+      "type": "armchair",
+      "width": 51.0,
+      "x": 729.0,
+      "y": 137.0
+    },
+    {
+      "height": 51.0,
+      "id": 277,
+      "metadata": {
+        "ui_type": "Coffee Table"
+      },
+      "rotation": 0.0,
+      "type": "meeting_table",
+      "width": 51.0,
+      "x": 745.0,
+      "y": 42.0
+    },
+    {
+      "height": 51.0,
+      "id": 278,
+      "metadata": {
+        "ui_type": "Dining Table"
+      },
+      "rotation": 180.0,
+      "type": "meeting_table",
+      "width": 51.0,
+      "x": 820.0,
+      "y": 35.0
+    },
+    {
+      "height": 51.0,
+      "id": 279,
+      "metadata": {
+        "ui_type": "Dining Table"
+      },
+      "rotation": 360.0,
+      "type": "meeting_table",
+      "width": 51.0,
+      "x": 821.0,
+      "y": 114.0
+    },
+    {
+      "height": 51.0,
+      "id": 280,
+      "metadata": {
+        "ui_type": "Dining Table"
+      },
+      "rotation": 0.0,
+      "type": "meeting_table",
+      "width": 51.0,
+      "x": 916.0,
+      "y": 110.0
+    },
+    {
+      "height": 51.0,
+      "id": 281,
+      "metadata": {
+        "ui_type": "Sink"
+      },
+      "rotation": 360.0,
+      "type": "sink",
+      "width": 51.0,
+      "x": 1026.0,
+      "y": 119.0
+    },
+    {
+      "height": 51.0,
+      "id": 284,
+      "metadata": {
+        "ui_type": "Door"
+      },
+      "rotation": 0.0,
+      "type": "door",
+      "width": 51.0,
+      "x": 670.0,
+      "y": 80.0
+    },
+    {
+      "height": 113.0,
+      "id": 286,
+      "metadata": {
+        "ui_type": "Wall"
+      },
+      "rotation": 0.0,
+      "type": "wall",
+      "width": 10.0,
+      "x": 1084.0,
+      "y": 599.0
+    },
+    {
+      "height": 10.0,
+      "id": 288,
+      "metadata": {
+        "ui_type": "Wall"
+      },
+      "rotation": 450.0,
+      "type": "wall",
+      "width": 114.0,
+      "x": 715.0,
+      "y": 409.0
+    },
+    {
+      "height": 10.0,
+      "id": 289,
+      "metadata": {
+        "ui_type": "Wall"
+      },
+      "rotation": 0.0,
+      "type": "wall",
+      "width": 77.0,
+      "x": 704.0,
+      "y": 524.0
+    },
+    {
+      "height": 10.0,
+      "id": 291,
+      "metadata": {
+        "ui_type": "Wall"
+      },
+      "rotation": 90.0,
+      "type": "wall",
+      "width": 116.0,
+      "x": 910.0,
+      "y": 411.0
+    },
+    {
+      "height": 51.0,
+      "id": 293,
+      "metadata": {
+        "ui_type": "Meeting Room"
+      },
+      "rotation": 0.0,
+      "type": "meeting_table",
+      "width": 51.0,
+      "x": 777.0,
+      "y": 428.0
+    },
+    {
+      "height": 51.0,
+      "id": 294,
+      "metadata": {
+        "ui_type": "Meeting Room"
+      },
+      "rotation": 0.0,
+      "type": "meeting_table",
+      "width": 51.0,
+      "x": 972.0,
+      "y": 428.99999999999994
+    },
+    {
+      "height": 51.0,
+      "id": 295,
+      "metadata": {
+        "ui_type": "Door"
+      },
+      "rotation": 270.0,
+      "type": "door",
+      "width": 51.0,
+      "x": 779.0,
+      "y": 513.0
+    },
+    {
+      "height": 51.0,
+      "id": 296,
+      "metadata": {
+        "ui_type": "Door"
+      },
+      "rotation": 270.0,
+      "type": "door",
+      "width": 51.0,
+      "x": 983.0,
+      "y": 512.0
+    },
+    {
+      "height": 10.0,
+      "id": 297,
+      "metadata": {
+        "ui_type": "Wall"
+      },
+      "rotation": 0.0,
+      "type": "wall",
+      "width": 164.0,
+      "x": 822.0,
+      "y": 518.0
+    },
+    {
+      "height": 10.0,
+      "id": 298,
+      "metadata": {
+        "ui_type": "Wall"
+      },
+      "rotation": 0.0,
+      "type": "wall",
+      "width": 44.0,
+      "x": 1033.0,
+      "y": 517.0
+    },
+    {
+      "height": 51.0,
+      "id": 301,
+      "metadata": {
+        "ui_type": "Desk"
+      },
+      "rotation": 270.0,
+      "type": "desk",
+      "width": 51.0,
+      "x": 29.0,
+      "y": 381.99999999999994
+    },
+    {
+      "height": 51.0,
+      "id": 302,
+      "metadata": {
+        "ui_type": "Desk"
+      },
+      "rotation": 270.0,
+      "type": "desk",
+      "width": 51.0,
+      "x": 118.0,
+      "y": 380.0
+    },
+    {
+      "height": 51.0,
+      "id": 303,
+      "metadata": {
+        "ui_type": "Desk"
+      },
+      "rotation": 270.0,
+      "type": "desk",
+      "width": 51.0,
+      "x": 203.0,
+      "y": 379.0
+    },
+    {
+      "height": 51.0,
+      "id": 305,
+      "metadata": {
+        "ui_type": "Armchair"
+      },
+      "rotation": 0.0,
+      "type": "armchair",
+      "width": 51.0,
+      "x": 25.0,
+      "y": 542.0
+    },
+    {
+      "height": 51.0,
+      "id": 306,
+      "metadata": {
+        "ui_type": "Armchair"
+      },
+      "rotation": 0.0,
+      "type": "armchair",
+      "width": 51.0,
+      "x": 90.0,
+      "y": 541.0
+    },
+    {
+      "height": 51.0,
+      "id": 307,
+      "metadata": {
+        "ui_type": "Armchair"
+      },
+      "rotation": 0.0,
+      "type": "armchair",
+      "width": 51.0,
+      "x": 155.0,
+      "y": 540.0
+    },
+    {
+      "height": 51.0,
+      "id": 309,
+      "metadata": {
+        "ui_type": "Corner Desk"
+      },
+      "rotation": 90.0,
+      "type": "desk",
+      "width": 51.0,
+      "x": 259.0,
+      "y": 13.0
+    },
+    {
+      "height": 51.0,
+      "id": 310,
+      "metadata": {
+        "ui_type": "Desk"
+      },
+      "rotation": 270.0,
+      "type": "desk",
+      "width": 51.0,
+      "x": 47.0,
+      "y": 97.0
+    },
+    {
+      "height": 51.0,
+      "id": 311,
+      "metadata": {
+        "ui_type": "Desk"
+      },
+      "rotation": 270.0,
+      "type": "desk",
+      "width": 51.0,
+      "x": 138.0,
+      "y": 97.0
+    },
+    {
+      "height": 51.0,
+      "id": 312,
+      "metadata": {
+        "ui_type": "Desk"
+      },
+      "rotation": 270.0,
+      "type": "desk",
+      "width": 51.0,
+      "x": 230.0,
+      "y": 95.0
+    },
+    {
+      "height": 51.0,
+      "id": 314,
+      "metadata": {
+        "ui_type": "Desk"
+      },
+      "rotation": 450.0,
+      "type": "desk",
+      "width": 51.0,
+      "x": 94.99999999999997,
+      "y": 15.000000000000014
+    },
+    {
+      "height": 51.0,
+      "id": 315,
+      "metadata": {
+        "ui_type": "Desk"
+      },
+      "rotation": 450.0,
+      "type": "desk",
+      "width": 51.0,
+      "x": 175.99999999999994,
+      "y": 19.0
+    },
+    {
+      "height": 51.0,
+      "id": 319,
+      "metadata": {
+        "ui_type": "Simple Table"
+      },
+      "rotation": 0.0,
+      "type": "desk",
+      "width": 51.0,
+      "x": 402.0,
+      "y": 21.0
+    },
+    {
+      "height": 51.0,
+      "id": 320,
+      "metadata": {
+        "ui_type": "Simple Table"
+      },
+      "rotation": 0.0,
+      "type": "desk",
+      "width": 51.0,
+      "x": 589.0,
+      "y": 23.0
+    },
+    {
+      "height": 51.0,
+      "id": 321,
+      "metadata": {
+        "ui_type": "Simple Table"
+      },
+      "rotation": 0.0,
+      "type": "desk",
+      "width": 51.0,
+      "x": 492.0,
+      "y": 23.0
+    },
+    {
+      "height": 51.0,
+      "id": 322,
+      "metadata": {
+        "ui_type": "Simple Table"
+      },
+      "rotation": 270.0,
+      "type": "desk",
+      "width": 51.0,
+      "x": 12.0,
+      "y": 195.0
+    },
+    {
+      "height": 51.0,
+      "id": 323,
+      "metadata": {
+        "ui_type": "Simple Table"
+      },
+      "rotation": 270.0,
+      "type": "desk",
+      "width": 51.0,
+      "x": 383.00000000000006,
+      "y": 375.0
+    },
+    {
+      "height": 51.0,
+      "id": 325,
+      "metadata": {
+        "ui_type": "Simple Table"
+      },
+      "rotation": 270.0,
+      "type": "desk",
+      "width": 51.0,
+      "x": 383.0,
+      "y": 568.0
+    },
+    {
+      "height": 51.0,
+      "id": 333,
+      "metadata": {
+        "ui_type": "Table"
+      },
+      "rotation": 0.0,
+      "type": "meeting_table",
+      "width": 51.0,
+      "x": 498.0,
+      "y": 187.0
+    },
+    {
+      "height": 51.0,
+      "id": 334,
+      "metadata": {
+        "ui_type": "Table"
+      },
+      "rotation": 0.0,
+      "type": "meeting_table",
+      "width": 51.0,
+      "x": 505.0,
+      "y": 444.99999999999994
+    },
+    {
+      "height": 51.0,
+      "id": 335,
+      "metadata": {
+        "ui_type": "Table"
+      },
+      "rotation": 0.0,
+      "type": "meeting_table",
+      "width": 51.0,
+      "x": 65.0,
+      "y": 622.0
+    },
+    {
+      "height": 51.0,
+      "id": 336,
+      "metadata": {
+        "ui_type": "Chair"
+      },
+      "rotation": 0.0,
+      "type": "chair",
+      "width": 51.0,
+      "x": 492.0,
+      "y": 126.0
+    },
+    {
+      "height": 51.0,
+      "id": 337,
+      "metadata": {
+        "ui_type": "Chair"
+      },
+      "rotation": 180.0,
+      "type": "chair",
+      "width": 51.0,
+      "x": 509.0,
+      "y": 500.0
+    },
+    {
+      "height": 51.0,
+      "id": 338,
+      "metadata": {
+        "ui_type": "Chair"
+      },
+      "rotation": 0.0,
+      "type": "chair",
+      "width": 51.0,
+      "x": 501.0,
+      "y": 391.0
+    },
+    {
+      "height": 51.0,
+      "id": 339,
+      "metadata": {
+        "ui_type": "Chair"
+      },
+      "rotation": 180.0,
+      "type": "chair",
+      "width": 51.0,
+      "x": 497.0,
+      "y": 249.0
+    },
+    {
+      "height": 51.0,
+      "id": 342,
+      "metadata": {
+        "ui_type": "Desk"
+      },
+      "rotation": 270.0,
+      "type": "desk",
+      "width": 51.0,
+      "x": 294.0,
+      "y": 380.9999999999999
+    },
+    {
+      "height": 51.0,
+      "id": 350,
+      "metadata": {
+        "ui_type": "Table 3 Persons"
+      },
+      "rotation": 0.0,
+      "type": "meeting_table",
+      "width": 51.0,
+      "x": 293.0,
+      "y": 282.0
+    }
+  ],
+  "room": {
+    "grid_size": 40.0,
+    "height": 600.0,
+    "width": 900.0
+  }
+}

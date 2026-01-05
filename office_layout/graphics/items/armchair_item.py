@@ -6,4 +6,4 @@ class ArmchairItem(ImageItem):
     def __init__(self, x: float, y: float):
         image_path = "resources/icons/armchair.png"
         super().__init__(x, y, image_path, item_type="Armchair")
-        self.setScale(1.5)
+        self.setScale(1)
