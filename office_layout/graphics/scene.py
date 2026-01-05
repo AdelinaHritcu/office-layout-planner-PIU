@@ -1,7 +1,7 @@
 # file: office_layout/graphics/scene.py
 
 import os
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Optional, Dict, Any, Tuple, List
 
 from PyQt5.QtWidgets import QGraphicsScene, QGraphicsRectItem, QGraphicsItem
 from PyQt5.QtGui import QBrush, QPen, QTransform
@@ -27,7 +27,8 @@ from office_layout.graphics.items.right_item import RightItem
 from office_layout.graphics.items.sofa_item import SofaItem
 from office_layout.graphics.items.table_item import TableItem
 from office_layout.graphics.items.table_3person_item import Table3PersonsItem
-from office_layout.models.layout_model import LayoutModel, LayoutObject
+from office_layout.graphics.items.exit_item import ExitItem
+from office_layout.models.layout_model import LayoutModel
 from office_layout.models.object_types import ObjectType
 
 from office_layout.algorithms.placement import can_place_object, move_object
@@ -62,37 +63,86 @@ class OfficeScene(QGraphicsScene):
         self.current_wall_item: Optional[WallItem] = None
         self.wall_thickness = 10.0  # fixed wall thickness
 
-        self._path_item: Optional[QGraphicsPathItem] = None
-        self._start_marker: Optional[QGraphicsEllipseItem] = None
+        # rebuild exit markers if model already has them
+        self._rebuild_exit_markers_from_model()
+
     # ------------------------------------------------------------------
     # general helpers
     # ------------------------------------------------------------------
 
     def set_object_type(self, object_type: str):
-        """Update the currently selected object type from the sidebar."""
         self.current_type = object_type
 
     def toggle_grid(self):
-        """Toggle grid visibility and refresh the scene."""
         self.show_grid = not self.show_grid
         self.update()
 
     def snap_to_grid(self, x: float, y: float) -> tuple[float, float]:
-        """Return the nearest grid-aligned position for (x, y)."""
         grid = self.grid_size
         snapped_x = round(x / grid) * grid
         snapped_y = round(y / grid) * grid
         return snapped_x, snapped_y
 
     # ------------------------------------------------------------------
+    # Exit marker support (NOT a LayoutObject)
+    # ------------------------------------------------------------------
+
+    def _create_exit_marker(self, x: float, y: float) -> QGraphicsItem:
+        """
+        Create an ExitItem centered at (x, y).
+        ExitItem internally uses ImageItem, which is usually positioned by top-left,
+        so we offset by half bounding rect.
+        """
+        it = ExitItem(0.0, 0.0)
+
+        # center the pixmap on requested point
+        br = it.boundingRect()
+        it.setPos(x - br.width() * it.scale() / 2.0, y - br.height() * it.scale() / 2.0)
+
+        # mark as exit marker so we do not register it as LayoutObject
+        setattr(it, "is_exit_marker", True)
+        return it
+
+    def _is_exit_marker(self, item: QGraphicsItem) -> bool:
+        if isinstance(item, ExitItem):
+            return True
+        return bool(getattr(item, "is_exit_marker", False))
+
+    def _sync_exit_points_from_markers(self) -> None:
+        pts: List[Dict[str, float]] = []
+        for it in self.items():
+            if self._is_exit_marker(it):
+                c = it.sceneBoundingRect().center()
+                pts.append({"x": float(c.x()), "y": float(c.y())})
+        self.layout_model.exit_points = pts
+
+    def _remove_all_exit_markers(self) -> None:
+        to_remove = []
+        for it in self.items():
+            if self._is_exit_marker(it):
+                to_remove.append(it)
+        for it in to_remove:
+            self.removeItem(it)
+            del it
+
+    def _rebuild_exit_markers_from_model(self) -> None:
+        self._remove_all_exit_markers()
+        for p in getattr(self.layout_model, "exit_points", []) or []:
+            if isinstance(p, dict):
+                x = float(p.get("x", 0.0))
+                y = float(p.get("y", 0.0))
+            else:
+                x = float(p[0])
+                y = float(p[1])
+
+            m = self._create_exit_marker(x, y)
+            self.addItem(m)
+
+    # ------------------------------------------------------------------
     # mapping helpers: UI type <-> ObjectType
     # ------------------------------------------------------------------
 
     def _map_ui_type_to_object_type(self, ui_type: str) -> ObjectType:
-        """
-        Map the UI label (e.g. 'Desk', 'Armchair') to a logical ObjectType.
-        Unknown types fallback to DESK for now.
-        """
         mapping: Dict[str, ObjectType] = {
             "Desk": ObjectType.DESK,
             "Corner Desk": ObjectType.DESK,
@@ -117,14 +167,9 @@ class OfficeScene(QGraphicsScene):
             "Toilet": ObjectType.TOILET,
             "Washbasin": ObjectType.WASHBASIN,
         }
-
         return mapping.get(ui_type, ObjectType.DESK)
 
     def _create_item_for_ui_type(self, ui_type: str, x: float, y: float) -> QGraphicsItem:
-        """
-        Create a graphics item instance for a given UI type and position.
-        This is used both when adding new items and when loading from model.
-        """
         if ui_type == "Desk":
             return DeskItem(x, y)
         if ui_type == "Chair":
@@ -160,12 +205,16 @@ class OfficeScene(QGraphicsScene):
         if ui_type == "Washbasin":
             return WashbasinItem(x, y)
         if ui_type == "Wall":
-            # default wall placed without dragging
             length = 200.0
             thickness = self.wall_thickness
             return WallItem(x, y, length, thickness)
 
-        # fallback generic image item
+        # Exit is not created here for normal placement; it is handled as a marker tool.
+        if ui_type == "Exit":
+            it = ExitItem(x, y)
+            setattr(it, "is_exit_marker", True)
+            return it
+
         size = 50
         image_name = f"{ui_type.lower().replace(' ', '')}.png"
         image_path = os.path.join("resources", "icons", image_name)
@@ -173,7 +222,6 @@ class OfficeScene(QGraphicsScene):
         if os.path.exists(image_path):
             return ImageItem(x, y, image_path, item_type=ui_type)
 
-        # fallback simple rect item
         rect_item = QGraphicsRectItem(0, 0, size, size)
         rect_item.setPos(x, y)
         rect_item.setBrush(QBrush(Qt.lightGray))
@@ -182,21 +230,18 @@ class OfficeScene(QGraphicsScene):
         return rect_item
 
     def _register_item_in_model(self, item: QGraphicsItem, ui_type: str):
-        """
-        Create a LayoutObject in the model corresponding to this graphics item.
-        Store the model id on the item as 'logical_id' for later sync.
-        If something goes wrong, do not crash the app – just log and return None.
-        """
-        # extra safety: layout_model must exist
         if not hasattr(self, "layout_model") or self.layout_model is None:
             print("[DEBUG] No layout_model attached to scene, skipping registration.")
+            return None
+
+        # Exit markers are not LayoutObjects
+        if ui_type == "Exit" or self._is_exit_marker(item):
             return None
 
         try:
             pos = item.pos()
             rect = item.boundingRect()
 
-            # some items might not implement scale()/rotation the same way
             scale = item.scale() if hasattr(item, "scale") else 1.0
             rotation = item.rotation() if hasattr(item, "rotation") else 0.0
 
@@ -220,7 +265,6 @@ class OfficeScene(QGraphicsScene):
             return layout_obj
 
         except Exception as e:
-            # VERY IMPORTANT: do not kill the app, just log to console
             print("[ERROR] _register_item_in_model failed:", repr(e))
             return None
 
@@ -228,72 +272,28 @@ class OfficeScene(QGraphicsScene):
     # item creation
     # ------------------------------------------------------------------
 
-    def _snap_door_to_nearest_wall(self, door: QGraphicsItem, max_dist: float = 18.0) -> None:
-        if door is None:
+    def add_item_at(self, pos: QPointF):
+        ui_type = self.current_type
+
+        # Exit tool: place a marker and store in layout_model.exit_points
+        if ui_type == "Exit":
+            x, y = float(pos.x()), float(pos.y())
+            if self.show_grid:
+                x, y = self.snap_to_grid(x, y)
+
+            marker = self._create_exit_marker(x, y)
+            self.addItem(marker)
+            self._sync_exit_points_from_markers()
+
+            for s in self.selectedItems():
+                s.setSelected(False)
+            marker.setSelected(True)
+            try:
+                marker.setFocus()
+            except Exception:
+                pass
             return
 
-        # Door rect in scene coords
-        drect = door.sceneBoundingRect()
-        dcx = drect.center().x()
-        dcy = drect.center().y()
-
-        best_wall = None
-        best_dist = float("inf")
-
-        for it in self.items():
-            if not isinstance(it, WallItem):
-                continue
-
-            wrect = it.sceneBoundingRect()
-            wx = wrect.center().x()
-            wy = wrect.center().y()
-
-            # quick distance check center-to-center
-            dist = ((wx - dcx) ** 2 + (wy - dcy) ** 2) ** 0.5
-            if dist < best_dist:
-                best_dist = dist
-                best_wall = it
-
-        if best_wall is None or best_dist > max_dist:
-            return
-
-        wrect = best_wall.sceneBoundingRect()
-        orient = getattr(best_wall, "orientation", "horizontal")
-        thickness = float(getattr(best_wall, "thickness", self.wall_thickness))
-
-        # Door size (assume door pos is top-left for most pixmap items)
-        # Use boundingRect width/height (local)
-        br = door.boundingRect()
-        dw = br.width()
-        dh = br.height()
-
-        # Snap:
-        # - If wall is horizontal => door goes on that wall line (y aligned), x clamped to wall segment
-        # - If wall is vertical   => door x aligned, y clamped
-        if orient == "horizontal":
-            # Wall "line" is at center y of its rect
-            wall_center_y = wrect.center().y()
-
-            # Place door so its center y = wall_center_y (looks glued)
-            new_y = wall_center_y - dh / 2.0
-
-            # Clamp x to wall length (door stays on wall)
-            left = wrect.left()
-            right = wrect.right()
-            new_x = max(left, min(dcx - dw / 2.0, right - dw))
-
-            door.setPos(new_x, new_y)
-
-        else:
-            wall_center_x = wrect.center().x()
-            new_x = wall_center_x - dw / 2.0
-
-            top = wrect.top()
-            bottom = wrect.bottom()
-            new_y = max(top, min(dcy - dh / 2.0, bottom - dh))
-
-            door.setPos(new_x, new_y)
-    def add_item_at(self, pos):
         size = 50
         x = pos.x() - size / 2
         y = pos.y() - size / 2
@@ -301,21 +301,16 @@ class OfficeScene(QGraphicsScene):
         if self.show_grid:
             x, y = self.snap_to_grid(x, y)
 
-        ui_type = self.current_type
         item = self._create_item_for_ui_type(ui_type, x, y)
 
         if item:
-            self.addItem(item)
-
-            if ui_type == "Door":
-                self._snap_door_to_nearest_wall(item)
-
             self._register_item_in_model(item, ui_type)
 
             for s in self.selectedItems():
                 s.setSelected(False)
-            item.setSelected(True)
 
+            self.addItem(item)
+            item.setSelected(True)
             try:
                 item.setFocus()
             except Exception:
@@ -334,38 +329,22 @@ class OfficeScene(QGraphicsScene):
 
         clicked_item = self.itemAt(pos, QTransform())
 
-        # SHIFT + Left Click => set start & compute shortest path to exit
-        if event.button() == Qt.LeftButton and (event.modifiers() & Qt.ShiftModifier):
-            # keep model up to date
-            try:
-                self.sync_model_from_items()
-            except Exception:
-                pass
-
-            start_xy = (float(pos.x()), float(pos.y()))
-            pts = find_shortest_path_to_exit(self.layout_model, start_xy)
-
-            if pts is None:
-                self._clear_path_overlay()
-                # optional: still show start marker
-                self._draw_path_overlay(pos, [])
-                print("[ROUTING] No path to any exit.")
-            else:
-                self._draw_path_overlay(pos, pts)
-                print(f"[ROUTING] Path length (cells) = {len(pts)}")
-
-            event.accept()
-            return
-
-        # daca e selectat ceva si dai click pe gol, doar deselecteaza
+        # deselect on empty click, but do not return (allow new placement)
         if event.button() == Qt.LeftButton and clicked_item is None and self.selectedItems():
             for s in self.selectedItems():
                 s.setSelected(False)
-            # nu return
 
         # right click delete
         if event.button() == Qt.RightButton:
             if clicked_item and (clicked_item.flags() & QGraphicsItem.ItemIsMovable):
+                # exit marker delete
+                if self._is_exit_marker(clicked_item):
+                    self.removeItem(clicked_item)
+                    del clicked_item
+                    self._sync_exit_points_from_markers()
+                    return
+
+                # normal object delete
                 logical_id = getattr(clicked_item, "logical_id", None)
                 if logical_id is not None:
                     self.layout_model.remove_object(logical_id)
@@ -374,38 +353,49 @@ class OfficeScene(QGraphicsScene):
                 return
 
         if event.button() == Qt.LeftButton:
+            # Wall placement (drag to size)
             if self.current_type == "Wall":
-                # IMPORTANT: daca ai dat click pe un perete existent, NU crea altul
                 if isinstance(clicked_item, WallItem):
                     super().mousePressEvent(event)
                     return
 
-                # creezi perete nou doar pe spatiu liber
                 if clicked_item is None:
                     self.is_drawing_wall = True
                     self.wall_start_pos = pos
 
                     thickness = self.wall_thickness
-                    min_len = 40.0  # ca sa nu fie punct mic
+                    min_len = 40.0
                     self.current_wall_item = WallItem(pos.x(), pos.y(), min_len, thickness)
                     self.current_wall_item.orientation = "horizontal"
                     self.addItem(self.current_wall_item)
                     self._register_item_in_model(self.current_wall_item, "Wall")
                     return
 
-                # daca ai dat click pe alt obiect (desk/chair etc), lasa selectia normala
                 super().mousePressEvent(event)
                 return
 
-            else:
+            # Exit placement
+            if self.current_type == "Exit":
+                # allow selecting/moving existing marker
+                if clicked_item is not None and self._is_exit_marker(clicked_item):
+                    super().mousePressEvent(event)
+                    return
+                # place on empty
                 if clicked_item is None:
                     self.add_item_at(pos)
                     return
+                super().mousePressEvent(event)
+                return
+
+            # Normal objects: place only on empty
+            if clicked_item is None:
+                self.add_item_at(pos)
+                return
 
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
-        # handle live wall drawing
+        # live wall drawing
         if self.is_drawing_wall and self.current_wall_item is not None:
             pos = event.scenePos()
 
@@ -420,25 +410,20 @@ class OfficeScene(QGraphicsScene):
             dx = pos.x() - start.x()
             dy = pos.y() - start.y()
 
-            # choose orientation by dominant axis
             if abs(dx) >= abs(dy):
-                # horizontal wall
                 self.current_wall_item.orientation = "horizontal"
                 length = max(abs(dx), min_length)
                 left_x = start.x() if dx >= 0 else start.x() - length
                 top_y = start.y() - thickness / 2.0
 
-                # local rect is (0, 0, length, thickness)
                 self.current_wall_item.setRect(0, 0, length, thickness)
                 self.current_wall_item.setPos(left_x, top_y)
             else:
-                # vertical wall
                 self.current_wall_item.orientation = "vertical"
                 length = max(abs(dy), min_length)
                 top_y = start.y() if dy >= 0 else start.y() - length
                 left_x = start.x() - thickness / 2.0
 
-                # local rect is (0, 0, thickness, length)
                 self.current_wall_item.setRect(0, 0, thickness, length)
                 self.current_wall_item.setPos(left_x, top_y)
 
@@ -447,7 +432,7 @@ class OfficeScene(QGraphicsScene):
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event):
-        # stop wall drawing on left button release
+        # stop wall drawing
         if self.is_drawing_wall and event.button() == Qt.LeftButton:
             self.is_drawing_wall = False
 
@@ -456,11 +441,9 @@ class OfficeScene(QGraphicsScene):
             self.wall_start_pos = None
 
             if wall is not None:
-                # snap endpoints to nearby wall endpoints
                 self._snap_wall_endpoints(wall, snap_dist=12.0)
                 self._sync_single_item_to_model(wall)
 
-                # clear previous selection and select the new wall
                 for s in self.selectedItems():
                     s.setSelected(False)
                 wall.setSelected(True)
@@ -478,18 +461,18 @@ class OfficeScene(QGraphicsScene):
             return
 
         item = selected[0]
+
+        # If an exit marker was moved, update model exit points
+        if self._is_exit_marker(item):
+            self._sync_exit_points_from_markers()
+            return
+
         logical_id = getattr(item, "logical_id", None)
         if logical_id is None:
             return
 
-        # IMPORTANT: for walls, sync directly to model (avoid move_object pos convention mismatch)
-        if isinstance(item, WallItem):
-            self._sync_single_item_to_model(item)
-            return
-
-        if isinstance(item, DoorItem):
-            self._snap_door_to_nearest_wall(item)
-            self._sync_single_item_to_model(item)
+        # keep model in sync for all items
+        self._sync_single_item_to_model(item)
 
         pos = item.pos()
         ok, msg = move_object(
@@ -503,14 +486,21 @@ class OfficeScene(QGraphicsScene):
             print("[VALIDATION] Move rejected:", msg)
             model_obj = self.layout_model.get_object(logical_id)
             if model_obj is not None:
-                item.setPos(model_obj.x, model_obj.y)
+                if isinstance(item, WallItem):
+                    orient = getattr(item, "orientation", "horizontal")
+                    t = float(getattr(item, "thickness", self.wall_thickness))
+                    if orient == "horizontal":
+                        item.setPos(model_obj.x, model_obj.y - t / 2.0)
+                    else:
+                        item.setPos(model_obj.x - t / 2.0, model_obj.y)
+                else:
+                    item.setPos(model_obj.x, model_obj.y)
 
     # ------------------------------------------------------------------
     # KEYBOARD EVENTS (rotate)
     # ------------------------------------------------------------------
 
     def keyPressEvent(self, event):
-        """Handle key presses for rotating selected items."""
         selected = self.selectedItems()
         if not selected:
             super().keyPressEvent(event)
@@ -518,22 +508,32 @@ class OfficeScene(QGraphicsScene):
 
         if event.key() == Qt.Key_R:
             for item in selected:
+                if self._is_exit_marker(item):
+                    continue
                 item.setRotation(item.rotation() + 90)
         elif event.key() == Qt.Key_Left:
             for item in selected:
+                if self._is_exit_marker(item):
+                    continue
                 item.setRotation(item.rotation() - 15)
         elif event.key() == Qt.Key_Right:
             for item in selected:
+                if self._is_exit_marker(item):
+                    continue
                 item.setRotation(item.rotation() + 15)
         else:
             super().keyPressEvent(event)
 
     # ------------------------------------------------------------------
-    # SAVE / LOAD HELPERS (via LayoutModel)
+    # SAVE / LOAD HELPERS
     # ------------------------------------------------------------------
 
     def sync_model_from_items(self) -> None:
+        # Update LayoutObjects from graphics items (except exit markers)
         for item in self.items():
+            if self._is_exit_marker(item):
+                continue
+
             logical_id = getattr(item, "logical_id", None)
             if logical_id is None:
                 continue
@@ -542,54 +542,49 @@ class OfficeScene(QGraphicsScene):
             if obj is None:
                 continue
 
+            pos = item.pos()
+
+            if hasattr(item, "rect") and callable(getattr(item, "rect")):
+                r = item.rect()
+                w = float(r.width())
+                h = float(r.height())
+            else:
+                br = item.boundingRect()
+                w = float(br.width())
+                h = float(br.height())
+
             rotation = float(item.rotation()) if hasattr(item, "rotation") else 0.0
 
+            x = float(pos.x())
+            y = float(pos.y())
+
             if isinstance(item, WallItem):
-                pts = item.get_snap_points_scene()
-                xs = [p.x() for p in pts]
-                ys = [p.y() for p in pts]
-
-                left, right = min(xs), max(xs)
-                top, bottom = min(ys), max(ys)
-
-                w = float(right - left)
-                h = float(bottom - top)
-
-                orient = "horizontal" if w >= h else "vertical"
-                item.orientation = orient
-
+                thickness = float(getattr(item, "thickness", 0.0))
+                orient = getattr(item, "orientation", "horizontal")
                 if orient == "horizontal":
-                    x = float(left)  # colț stânga real
-                    y = float((top + bottom) / 2.0)  # centerline y
+                    y = float(pos.y() + thickness / 2.0)
                 else:
-                    x = float((left + right) / 2.0)  # centerline x
-                    y = float(top)  # sus real
+                    x = float(pos.x() + thickness / 2.0)
 
-                obj.x = x
-                obj.y = y
-                obj.width = w
-                obj.height = h
-                obj.rotation = rotation
-                continue
-
-            # --- default items ---
-            pos = item.pos()
-            rect = item.rect() if hasattr(item, "rect") else item.boundingRect()
-
-            obj.x = float(pos.x())
-            obj.y = float(pos.y())
-            obj.width = float(rect.width())
-            obj.height = float(rect.height())
+            obj.x = x
+            obj.y = y
+            obj.width = w
+            obj.height = h
             obj.rotation = rotation
+
+        # Update exit_points from markers
+        self._sync_exit_points_from_markers()
 
     def get_scene_data(self) -> dict:
         self.sync_model_from_items()
         return self.layout_model.to_dict()
 
     def clear_scene(self):
-        """Remove all placed items from the scene (movable + walls)."""
         items_to_remove = []
         for item in self.items():
+            if self._is_exit_marker(item):
+                items_to_remove.append(item)
+                continue
             if (item.flags() & QGraphicsItem.ItemIsMovable) or isinstance(item, WallItem):
                 items_to_remove.append(item)
 
@@ -608,7 +603,6 @@ class OfficeScene(QGraphicsScene):
 
         pos = item.pos()
 
-        # rect source: QGraphicsRectItem -> rect(), Pixmap/others -> boundingRect()
         if hasattr(item, "rect") and callable(getattr(item, "rect")):
             r = item.rect()
             w = float(r.width())
@@ -622,9 +616,6 @@ class OfficeScene(QGraphicsScene):
         y = float(pos.y())
         rot = float(item.rotation()) if hasattr(item, "rotation") else 0.0
 
-        # Walls are stored with a special convention in model:
-        # - horizontal: x = left, y = centerline_y
-        # - vertical:   x = centerline_x, y = top
         if isinstance(item, WallItem):
             thickness = float(getattr(item, "thickness", 0.0))
             orient = getattr(item, "orientation", "horizontal")
@@ -641,45 +632,37 @@ class OfficeScene(QGraphicsScene):
 
     def load_scene_data(self, data: dict):
         self.clear_scene()
+
         self.layout_model = LayoutModel.from_dict(data)
 
         for obj in self.layout_model.all_objects():
             ui_type = obj.metadata.get("ui_type", obj.type.name.title())
-
-            if ui_type == "Wall":
-                t = float(self.wall_thickness)
-                item = WallItem(0.0, 0.0, 1.0, t)
-
-                item.setRect(0, 0, obj.width, obj.height)
-                item.orientation = "horizontal" if obj.width >= obj.height else "vertical"
-
-                t = float(getattr(item, "thickness", self.wall_thickness))
-                if item.orientation == "horizontal":
-                    item.setPos(obj.x, obj.y - t / 2.0)
-                else:
-                    item.setPos(obj.x - t / 2.0, obj.y)
-
-
-
-            else:
-                item = self._create_item_for_ui_type(ui_type, obj.x, obj.y)
-
+            item = self._create_item_for_ui_type(ui_type, obj.x, obj.y)
             if item:
+                if ui_type == "Wall" and isinstance(item, WallItem):
+                    item.setRect(0, 0, obj.width, obj.height)
+                    item.orientation = "horizontal" if obj.width >= obj.height else "vertical"
+
+                    t = float(getattr(item, "thickness", self.wall_thickness))
+                    if item.orientation == "horizontal":
+                        item.setPos(obj.x, obj.y - t / 2.0)
+                    else:
+                        item.setPos(obj.x - t / 2.0, obj.y)
+
                 item.setRotation(obj.rotation)
                 self.addItem(item)
                 setattr(item, "logical_id", obj.id)
 
+        self._rebuild_exit_markers_from_model()
+
     def _snap_wall_endpoints(self, wall: WallItem, snap_dist: float = 12.0) -> None:
-        """
-        Snap wall corners (rectangle corner-to-corner) so walls visually touch without gaps.
-        """
         if wall is None:
             return
 
         w_points = wall.get_snap_points_scene()
 
         best_d = float("inf")
-        best = None  # (wall_point, target_point)
+        best = None
 
         for item in self.items():
             if item is wall:
@@ -704,15 +687,9 @@ class OfficeScene(QGraphicsScene):
         wall.setPos(wall.pos() + delta)
 
     def set_model(self, model: LayoutModel) -> None:
-        """
-        Attach a new LayoutModel to the scene and rebuild graphics items from it.
-        """
         self.layout_model = model
 
-        # keep sceneRect consistent with loaded room size
         self.setSceneRect(0, 0, model.room_width, model.room_height)
-
-        # optional: keep grid size from model if you want
         self.grid_size = int(model.grid_size)
 
         self.rebuild_from_model()
@@ -725,9 +702,6 @@ class OfficeScene(QGraphicsScene):
             item = self._create_item_for_ui_type(ui_type, obj.x, obj.y)
             if item:
                 if ui_type == "Wall" and isinstance(item, WallItem):
-                    t = float(self.wall_thickness)
-                    item = WallItem(0.0, 0.0, 1.0, t)
-
                     item.setRect(0, 0, obj.width, obj.height)
                     item.orientation = "horizontal" if obj.width >= obj.height else "vertical"
 
@@ -741,46 +715,11 @@ class OfficeScene(QGraphicsScene):
                 self.addItem(item)
                 setattr(item, "logical_id", obj.id)
 
+        self._rebuild_exit_markers_from_model()
+
     # ------------------------------------------------------------------
     # GRID DRAWING
     # ------------------------------------------------------------------
-
-    def _clear_path_overlay(self) -> None:
-        if self._path_item is not None:
-            self.removeItem(self._path_item)
-            self._path_item = None
-        if self._start_marker is not None:
-            self.removeItem(self._start_marker)
-            self._start_marker = None
-
-    def _draw_path_overlay(self, start_xy: QPointF, points: List[Tuple[float, float]]) -> None:
-        self._clear_path_overlay()
-
-        # start marker
-        r = 6.0
-        self._start_marker = QGraphicsEllipseItem(start_xy.x() - r, start_xy.y() - r, 2 * r, 2 * r)
-        self._start_marker.setBrush(QBrush(Qt.blue))
-        self._start_marker.setPen(QPen(Qt.blue, 1))
-        self._start_marker.setZValue(10_000)
-        self._start_marker.setFlag(QGraphicsItem.ItemIsSelectable, False)
-        self._start_marker.setFlag(QGraphicsItem.ItemIsMovable, False)
-        self.addItem(self._start_marker)
-
-        if not points:
-            return
-
-        path = QPainterPath()
-        path.moveTo(points[0][0], points[0][1])
-        for x, y in points[1:]:
-            path.lineTo(x, y)
-
-        self._path_item = QGraphicsPathItem(path)
-        pen = QPen(Qt.red, 3)
-        self._path_item.setPen(pen)
-        self._path_item.setZValue(9_999)
-        self._path_item.setFlag(QGraphicsItem.ItemIsSelectable, False)
-        self._path_item.setFlag(QGraphicsItem.ItemIsMovable, False)
-        self.addItem(self._path_item)
 
     def drawBackground(self, painter, rect: QRectF):
         super().drawBackground(painter, rect)
@@ -810,5 +749,3 @@ class OfficeScene(QGraphicsScene):
             y += grid
 
         painter.restore()
-
-

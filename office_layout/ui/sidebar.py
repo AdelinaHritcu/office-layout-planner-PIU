@@ -1,6 +1,7 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QListWidget, QListWidgetItem, QPushButton
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QListWidget, QListWidgetItem, QPushButton, QGraphicsEllipseItem
 from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import QSize
+
 
 
 class Sidebar(QWidget):
@@ -35,6 +36,7 @@ class Sidebar(QWidget):
             ("Toilet", "resources/icons/toilet.png"),
             ("Sink", "resources/icons/sink.png"),
             ("Washbasin", "resources/icons/washbasin.png"),
+            ("Exit", "resources/icons/exit.png")
         ]
 
 

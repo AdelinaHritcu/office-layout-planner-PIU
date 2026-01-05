@@ -40,7 +40,8 @@ class MainWindow(QMainWindow):
             room_height=600,      # should match sceneRect height
             grid_size=40.0,
         )
-        self.layout_model.exit_points = [{"x": 899.0, "y": 300.0}]
+        #self.layout_model.exit_points = [{"x": 899.0, "y": 300.0}]
+        self.scene = OfficeScene(layout_model=self.layout_model, parent=self)
 
         # Pass the model to the scene (and this window as Qt parent)
         self.scene = OfficeScene(layout_model=self.layout_model, parent=self)
@@ -68,7 +69,7 @@ class MainWindow(QMainWindow):
         self.sidebar.btn_save.clicked.connect(self.save_plan)
         self.sidebar.btn_load.clicked.connect(self.load_plan)
 
-        # Toolbar → actions
+        # Toolbar - actions
         self.toolbar.zoom_in_action.triggered.connect(self.zoom_in)
         self.toolbar.zoom_out_action.triggered.connect(self.zoom_out)
         self.toolbar.toggle_grid_action.triggered.connect(self.toggle_grid)
