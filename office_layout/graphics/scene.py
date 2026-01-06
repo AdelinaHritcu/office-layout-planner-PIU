@@ -1,16 +1,17 @@
-# file: office_layout/graphics/scene.py
-
 import os
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Union, Tuple
 
 from PyQt5.QtWidgets import (
     QGraphicsScene,
     QGraphicsRectItem,
     QGraphicsItem,
+    QGraphicsPathItem,
+    QGraphicsEllipseItem,
 )
-from PyQt5.QtGui import QBrush, QPen, QTransform
+from PyQt5.QtGui import QBrush, QPen, QTransform, QPainterPath
 from PyQt5.QtCore import Qt, QRectF, QPointF
 
+from office_layout.algorithms.routing import find_shortest_path_to_exit
 from office_layout.graphics.items.base_item import ImageItem
 from office_layout.graphics.items.desk_item import DeskItem
 from office_layout.graphics.items.chair_item import ChairItem
@@ -37,6 +38,9 @@ from office_layout.models.layout_model import LayoutModel
 from office_layout.models.object_types import ObjectType
 
 from office_layout.algorithms.placement import move_object
+
+
+PathPoint = Union[Dict[str, float], Tuple[float, float]]
 
 
 class OfficeScene(QGraphicsScene):
@@ -72,6 +76,10 @@ class OfficeScene(QGraphicsScene):
         self._history_limit: int = 80
         self._history_suspended: bool = False
 
+        # --- Routing overlay (Shift + Click) ---
+        self._route_path_item: Optional[QGraphicsPathItem] = None
+        self._route_start_item: Optional[QGraphicsEllipseItem] = None
+
         # rebuild exit markers if model already has them
         self._rebuild_exit_markers_from_model()
 
@@ -89,7 +97,7 @@ class OfficeScene(QGraphicsScene):
         self.show_grid = not self.show_grid
         self.update()
 
-    def snap_to_grid(self, x: float, y: float) -> tuple[float, float]:
+    def snap_to_grid(self, x: float, y: float) -> Tuple[float, float]:
         grid = self.grid_size
         snapped_x = round(x / grid) * grid
         snapped_y = round(y / grid) * grid
@@ -120,6 +128,8 @@ class OfficeScene(QGraphicsScene):
         if not self.can_undo():
             return
 
+        self._clear_path_overlay()
+
         current = self.get_scene_data()
         self._redo_stack.append(current)
 
@@ -135,6 +145,8 @@ class OfficeScene(QGraphicsScene):
         """Redo last undone change (restore next snapshot)."""
         if not self.can_redo():
             return
+
+        self._clear_path_overlay()
 
         target = self._redo_stack.pop()
 
@@ -205,22 +217,17 @@ class OfficeScene(QGraphicsScene):
             "Desk": ObjectType.DESK,
             "Corner Desk": ObjectType.DESK,
             "Simple Table": ObjectType.DESK,
-
             "Chair": ObjectType.CHAIR,
-
             "Armchair": ObjectType.ARMCHAIR,
             "Sofa": ObjectType.ARMCHAIR,
-
             "Wall": ObjectType.WALL,
             "Door": ObjectType.DOOR,
-
             "Table": ObjectType.MEETING_TABLE,
             "Table 3 Persons": ObjectType.MEETING_TABLE,
             "Coffee Table": ObjectType.MEETING_TABLE,
             "Dining Table": ObjectType.MEETING_TABLE,
             "Pool Table": ObjectType.MEETING_TABLE,
             "Meeting Room": ObjectType.MEETING_TABLE,
-
             "Sink": ObjectType.SINK,
             "Toilet": ObjectType.TOILET,
             "Washbasin": ObjectType.WASHBASIN,
@@ -380,6 +387,63 @@ class OfficeScene(QGraphicsScene):
                 pass
 
     # ------------------------------------------------------------------
+    # Routing overlay helpers
+    # ------------------------------------------------------------------
+
+    def _clear_path_overlay(self) -> None:
+        if self._route_path_item is not None:
+            self.removeItem(self._route_path_item)
+            self._route_path_item = None
+        if self._route_start_item is not None:
+            self.removeItem(self._route_start_item)
+            self._route_start_item = None
+
+    def _draw_path_overlay(self, start_pos: QPointF, pts: List[PathPoint]) -> None:
+        """
+        start_pos: QPointF in scene coordinates
+        pts: list of points either as {"x":..,"y":..} or (x,y) tuples (scene coordinates)
+        """
+        self._clear_path_overlay()
+
+        # start marker
+        r = 6.0
+        start = QGraphicsEllipseItem(-r, -r, 2 * r, 2 * r)
+        start.setPos(float(start_pos.x()), float(start_pos.y()))
+        start.setBrush(QBrush(Qt.green))
+        start.setPen(QPen(Qt.black))
+        start.setZValue(10_000)
+        start.setFlag(QGraphicsItem.ItemIsSelectable, False)
+        start.setFlag(QGraphicsItem.ItemIsMovable, False)
+        self.addItem(start)
+        self._route_start_item = start
+
+        if not pts:
+            return
+
+        # normalize points
+        norm: List[QPointF] = []
+        for p in pts:
+            if isinstance(p, dict):
+                norm.append(QPointF(float(p["x"]), float(p["y"])))
+            else:
+                norm.append(QPointF(float(p[0]), float(p[1])))
+
+        path = QPainterPath()
+        path.moveTo(start_pos)
+        for q in norm:
+            path.lineTo(q)
+
+        item = QGraphicsPathItem(path)
+        pen = QPen(Qt.red)
+        pen.setWidth(3)
+        item.setPen(pen)
+        item.setZValue(9_999)
+        item.setFlag(QGraphicsItem.ItemIsSelectable, False)
+        item.setFlag(QGraphicsItem.ItemIsMovable, False)
+        self.addItem(item)
+        self._route_path_item = item
+
+    # ------------------------------------------------------------------
     # MOUSE EVENTS
     # ------------------------------------------------------------------
 
@@ -391,6 +455,38 @@ class OfficeScene(QGraphicsScene):
             pos.setY(round(pos.y() / self.grid_size) * self.grid_size)
 
         clicked_item = self.itemAt(pos, QTransform())
+
+        if (
+                event.button() == Qt.LeftButton
+                and (event.modifiers() & Qt.ShiftModifier)
+                and clicked_item is None
+        ):
+            try:
+                self.sync_model_from_items()
+            except Exception as e:
+                print(f"[ROUTING] sync_model_from_items failed: {e}")
+
+            start_xy = (float(pos.x()), float(pos.y()))
+
+            try:
+                pts = find_shortest_path_to_exit(self.layout_model, start_xy)
+            except Exception as e:
+                self._draw_path_overlay(pos, [])
+                print(f"[ROUTING] find_shortest_path_to_exit failed: {e}")
+                event.accept()
+                return
+
+            if not pts:
+                self._draw_path_overlay(pos, [])
+                print("[ROUTING] No path to any exit.")
+                event.accept()
+                return
+
+            self._draw_path_overlay(pos, pts)
+            print(f"[ROUTING] Path length (points) = {len(pts)}")
+
+            event.accept()
+            return
 
         # --- Select tool: cursor only, no placement ---
         if self.current_type == "Select":
@@ -562,7 +658,11 @@ class OfficeScene(QGraphicsScene):
         new_pos = item.pos()
         new_rot = float(item.rotation()) if hasattr(item, "rotation") else 0.0
 
-        changed = (abs(new_pos.x() - old_x) > 0.01) or (abs(new_pos.y() - old_y) > 0.01) or (abs(new_rot - old_rot) > 0.01)
+        changed = (
+            (abs(new_pos.x() - old_x) > 0.01)
+            or (abs(new_pos.y() - old_y) > 0.01)
+            or (abs(new_rot - old_rot) > 0.01)
+        )
         if changed:
             self._push_undo_state()
 
@@ -679,6 +779,8 @@ class OfficeScene(QGraphicsScene):
         return self.layout_model.to_dict()
 
     def clear_scene(self):
+        self._clear_path_overlay()
+
         items_to_remove = []
         for item in self.items():
             if self._is_exit_marker(item):
